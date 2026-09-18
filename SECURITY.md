@@ -1,177 +1,97 @@
-# Security Policy
+Security Features
 
-## Supported Versions
+The MJIS application uses security controls across authentication, authorization, database access, and server-side integrations.
 
-We actively support the following versions of CoreHR Hub with security updates:
+Row Level Security (RLS)
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+Where configured, database tables are protected with RLS policies designed to ensure that:
 
-## Reporting a Vulnerability
+Users can access only data they are authorized to access
 
-We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
+Managers can access appropriate team data
 
-### How to Report
+HR and Admin roles have appropriate elevated access
 
-**DO NOT** create a public GitHub issue for security vulnerabilities.
+Public data is explicitly controlled and exposed only where required
 
-Instead, please report security vulnerabilities by emailing:
+Role-Based Access Control
 
-📧 **security@corehr-hub.example.com**
+MJIS supports the following application roles:
 
-Please include the following information in your report:
+admin — Full MJIS system access and user/role management
 
-1. **Description**: A clear description of the vulnerability
-2. **Impact**: What an attacker could potentially achieve
-3. **Steps to Reproduce**: Detailed steps to reproduce the issue
-4. **Affected Components**: Which parts of the application are affected
-5. **Suggested Fix**: If you have ideas on how to fix the issue (optional)
-6. **Your Contact Information**: So we can follow up with questions
+hr — Employee management, payroll, recruitment, reports, and HR operations
 
-### What to Expect
+manager — Team management and leave approval functions
 
-- **Acknowledgment**: We will acknowledge receipt of your report within 48 hours
-- **Initial Assessment**: We will provide an initial assessment within 7 days
-- **Regular Updates**: We will keep you informed of our progress
-- **Resolution Timeline**: We aim to resolve critical vulnerabilities within 30 days
-- **Credit**: We will credit you in our security acknowledgments (unless you prefer to remain anonymous)
+employee — Employee self-service including profile, leaves, documents, attendance, and salary slips
 
-### Scope
+Role checks and database policies should be enforced through trusted server-side/database mechanisms rather than relying solely on frontend controls.
 
-The following are in scope for security reports:
+Authentication
 
-- CoreHR Hub application code
-- Supabase Edge Functions
-- Authentication and authorization mechanisms
-- Data exposure vulnerabilities
-- SQL injection vulnerabilities
-- Cross-site scripting (XSS)
-- Cross-site request forgery (CSRF)
-- Insecure direct object references (IDOR)
-- Row Level Security (RLS) bypass
+MJIS uses Supabase Auth for authentication.
 
-The following are **out of scope**:
+Security-related controls include:
 
-- Vulnerabilities in third-party dependencies (report these to the maintainers)
-- Social engineering attacks
-- Denial of service attacks
-- Issues in the Supabase platform itself (report to Supabase)
-- Issues requiring physical access to a user's device
+Secure session management using Supabase authentication
 
-## Security Best Practices
+Email/password authentication
 
-### For Self-Hosted Deployments
+Optional Google and Facebook authentication where configured
 
-1. **Environment Variables**
-   - Never commit secrets to version control
-   - Use strong, unique values for `JWT_SECRET` and database passwords
-   - Rotate secrets regularly
-   - Use a secrets manager in production
+Configurable authentication and redirect settings
 
-2. **Database Security**
-   - Enable Row Level Security (RLS) on all tables containing user data
-   - Review and audit RLS policies regularly
-   - Use the principle of least privilege for database roles
-   - Enable SSL for database connections
+Authorization based on authenticated users and application roles
 
-3. **Authentication**
-   - Enforce strong password policies
-   - Consider enabling multi-factor authentication
-   - Set appropriate session timeouts
-   - Monitor for unusual authentication patterns
+API & Edge Function Security
 
-4. **Network Security**
-   - Use HTTPS in production
-   - Configure proper CORS policies
-   - Use a Web Application Firewall (WAF) if possible
-   - Keep all services behind a reverse proxy
+MJIS uses Supabase Edge Functions for server-side integrations and protected operations.
 
-5. **Monitoring**
-   - Enable logging for authentication events
-   - Monitor for suspicious activity
-   - Set up alerts for failed login attempts
-   - Regularly review access logs
+Security practices include:
 
-### For Developers Contributing Code
+Authentication for protected API operations
 
-1. **Input Validation**
-   - Validate all user inputs on both client and server
-   - Use schema validation (e.g., Zod) for TypeScript
-   - Sanitize data before database operations
-   - Encode output to prevent XSS
+Server-side handling of sensitive integrations
 
-2. **Authentication & Authorization**
-   - Never store roles in the profiles table (use `user_roles` table)
-   - Never trust client-side role checks for authorization
-   - Always verify permissions server-side
-   - Use Supabase's `auth.uid()` for user identification
+Request validation for Edge Functions
 
-3. **Database Queries**
-   - Use parameterized queries (Supabase client handles this)
-   - Implement proper RLS policies for new tables
-   - Avoid exposing internal IDs where possible
-   - Limit query results with pagination
+CORS configuration appropriate to the deployed application
 
-4. **Sensitive Data**
-   - Never log sensitive information
-   - Use secure methods for handling passwords
-   - Encrypt sensitive data at rest
-   - Be careful with error messages (don't leak information)
+Keeping API keys and service-role credentials out of frontend code
 
-5. **Dependencies**
-   - Keep dependencies updated
-   - Review security advisories regularly
-   - Use `npm audit` to check for vulnerabilities
-   - Pin dependency versions in production
+SMS & Email Security
 
-## Security Features
+MJIS may use TextBee for SMS functionality and Resend for email notifications where configured.
 
-CoreHR Hub includes the following security features:
+SMS and email service credentials must be stored as secure server-side secrets
 
-### Row Level Security (RLS)
+TextBee API keys must never be exposed in frontend code
 
-All database tables are protected with RLS policies that ensure:
-- Users can only access their own data
-- Managers can access their team's data
-- HR and Admin roles have appropriate elevated access
-- Public data is explicitly marked as such
+Supabase service-role keys must remain server-side only
 
-### Role-Based Access Control
+Email and SMS integrations should be reviewed before production deployment
 
-- Roles are stored in a separate `user_roles` table
-- Role checking is done via `SECURITY DEFINER` functions
-- No client-side role storage or verification
-- Four role levels: `admin`, `hr`, `manager`, `employee`
+Security Acknowledgments
 
-### Authentication
+We would like to thank individuals who responsibly disclose security vulnerabilities and help improve the security of Maa Janki Industrial Services (MJIS).
 
-- Powered by Supabase Auth (GoTrue)
-- Secure session management with JWT tokens
-- Password hashing with bcrypt
-- Configurable password policies
+No acknowledgments yet. Be the first to responsibly report a vulnerability.
 
-### API Security
+Contact
 
-- All API calls authenticated via JWT
-- CORS configured for specific origins
-- Rate limiting on authentication endpoints
-- Request validation on Edge Functions
+For general business, website, HRMS, or security-related inquiries, please contact:
 
-## Security Acknowledgments
+📧 info@mjis.in
 
-We would like to thank the following individuals for responsibly disclosing security vulnerabilities:
+For vulnerability reports, please use the same address and clearly mark the email as a Security Vulnerability Report.
 
-*No acknowledgments yet. Be the first to report a vulnerability!*
+Company: Maa Janki Industrial Services (MJIS)
 
-## Contact
+Email: info@mjis.in
 
-For security-related inquiries that are not vulnerability reports, you can reach us at:
+GitHub Repository: https://github.com/ranjeetkumarpandeyy/MJIS
 
-- Email: security@corehr-hub.example.com
-- GitHub Discussions: [Security Category](https://github.com/your-org/corehr-hub/discussions/categories/security)
+This security policy is maintained for the MJIS project and may be updated as the application, infrastructure, and security requirements evolve.
 
----
-
-*This security policy is based on industry best practices and will be updated as needed.*
+© 2026 Maa Janki Industrial Services (MJIS). All rights reserved.
