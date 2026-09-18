@@ -1,198 +1,233 @@
-# CoreHR Hub
+Maa Janki Industrial Services (MJIS)
 
-A comprehensive HR management system built with React, TypeScript, and Supabase.
+A comprehensive human resource management and corporate website platform built for Maa Janki Industrial Services (MJIS) using React, TypeScript, Vite, Tailwind CSS, and Supabase.
 
-## Features
+Features
 
-- **Employee Management** - Full CRUD operations, bulk actions, manager assignments
-- **Leave Management** - Request, approve, and track leave balances
-- **Attendance Tracking** - Clock in/out with reminders
-- **Payroll** - Salary structures, payslips, and history tracking
-- **Performance Reviews** - Goals, reviews, and analytics
-- **Asset Management** - Track company assets assigned to employees
-- **Document Management** - Secure employee document storage
-- **Notifications** - Email notifications via Resend
-- **Role-Based Access** - Admin, HR, Manager, and Employee roles
+Employee Management - Employee records, management, and manager assignments
 
-## Tech Stack
+Leave Management - Leave requests, approvals, and leave balance tracking
 
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
-- **UI Components**: shadcn/ui, Radix UI
-- **State Management**: TanStack Query
-- **Backend**: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
-- **Email**: Resend
+Attendance Tracking - Employee clock in/out and attendance monitoring
 
-## Prerequisites
+Payroll Management - Salary structures, payroll records, payslips, and payroll history
 
-- Node.js 18+ and npm
-- Supabase account (free tier works)
-- Resend account for email notifications (optional)
+Salary Slips - Employee access to salary slips with MJIS branding and print/download support
 
-## Setup Instructions
+Performance Management - Goals, performance reviews, and related analytics
 
-### 1. Clone and Install
+Asset Management - Track company assets assigned to employees
 
-```bash
-git clone <your-repo-url>
-cd <project-directory>
+Document Management - Secure employee document storage
+
+Notifications - Application notifications and email notification support
+
+SMS Center - SMS communication for HR and operational notifications
+
+Authentication - Email/password authentication with optional Google and Facebook sign-in
+
+Role-Based Access - Admin, HR, Manager, and Employee roles
+
+Corporate Website - MJIS public-facing website with company information and services
+
+Career Enquiries - Public career/application submission connected to the HR system
+
+Work Enquiries - Public business/work enquiry submission connected to the HR system
+
+Contact Messages - Public contact form connected to the HR system
+
+PWA Support - Progressive Web App support for the MJIS platform
+
+Tech Stack
+
+Frontend: React, TypeScript, Vite, Tailwind CSS
+
+UI Components: shadcn/ui, Radix UI
+
+State Management: TanStack Query
+
+Backend: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
+
+SMS: TextBee through Supabase Edge Functions
+
+Email: Resend (where configured)
+
+Deployment: Vercel or Netlify
+
+Prerequisites
+
+Node.js 18+ and npm
+
+Supabase account
+
+TextBee account/device for SMS features
+
+Resend account for email notifications, where required
+
+Setup Instructions
+
+1. Clone and Install
+
+git clone https://github.com/ranjeetkumarpandeyy/MJIS.git
+cd MJIS
 npm install
-```
 
-### 2. Supabase Setup
+2. Supabase Setup
 
-#### Create a Supabase Project
+Create or Use the MJIS Supabase Project
 
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Note your project URL and anon key from Settings > API
+Open the Supabase Dashboard.
 
-#### Run Database Migrations
+Create a project or connect the existing MJIS Supabase project.
 
-All migrations are in `supabase/migrations/`. These are **schema-only** migrations that create the database structure without any test data.
+Note the project URL and publishable/anon key from the API settings.
 
-1. Go to your Supabase Dashboard > SQL Editor
-2. Run each migration file in chronological order (files are timestamped)
+Run Database Migrations
 
-The migrations will create:
-- All required tables (employees, departments, leaves, payroll, etc.)
-- Row Level Security (RLS) policies
-- Database functions and triggers
-- Storage buckets for documents
+All production schema changes are stored in supabase/migrations/ and should be applied in chronological order.
 
-#### Seed Data (Optional)
+The migrations cover MJIS application functionality such as:
 
-For development/testing, you can optionally run the seed file to populate sample data:
+Employee and HR management data
 
-```bash
-# Using Make (recommended)
+Leave and attendance functionality
+
+Payroll and salary slips
+
+Public website enquiries and messages
+
+Role-based access and related security rules
+
+Storage configuration and database functions/triggers used by the application
+
+Do not run development seed data against the production MJIS database.
+
+Seed Data (Development Only)
+
+For development/testing, use the project seed file when available:
+
 make seed
 
-# Or manually via Supabase SQL Editor
-# Copy contents of supabase/seed.sql and run in SQL Editor
-```
+Or run the appropriate seed SQL manually through the Supabase SQL Editor.
 
-The seed file (`supabase/seed.sql`) includes:
-- Sample departments (Engineering, HR, Finance, etc.)
-- Leave types (Annual, Sick, Casual, etc.)
-- Company holidays (adjust dates as needed)
-- Sample assets for testing
+Important: Do not use development/test seed data on the production MJIS database.
 
-**Note:** Do NOT run seed data on production databases. It's meant for development only.
+Enable Required Extensions
 
-#### Enable Required Extensions
+When required by the deployed MJIS configuration, enable:
 
-In SQL Editor, run:
-```sql
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
-```
 
-#### Configure Authentication
+3. Configure Authentication
 
-1. Go to Authentication > Providers
-2. Enable Email provider (enabled by default)
-3. (Optional) Configure OAuth providers (Google, GitHub, etc.)
-4. Go to Authentication > URL Configuration:
-   - Set Site URL to your deployment URL
-   - Add redirect URLs for your domains
+In Supabase:
 
-#### Storage Setup
+Go to Authentication > Providers.
 
-The migrations create an `employee-documents` bucket. Verify it exists:
-1. Go to Storage in your Supabase dashboard
-2. Confirm `employee-documents` bucket exists with proper policies
+Enable Email authentication.
 
-### 3. Environment Variables
+Enable Google and/or Facebook when those login methods are configured for MJIS.
 
-Create a `.env` file in the project root:
+Configure the production Site URL and allowed Redirect URLs for the deployed MJIS website.
 
-```env
-VITE_SUPABASE_PROJECT_ID="your-project-id"
-VITE_SUPABASE_PUBLISHABLE_KEY="your-anon-key"
-VITE_SUPABASE_URL="https://your-project-id.supabase.co"
-```
+For local development, use the local Vite URL configured for the project.
 
-**Where to find these values:**
-1. Go to your [Supabase Dashboard](https://supabase.com/dashboard)
-2. Select your project
-3. Navigate to **Settings > API** (or **Project Settings > API**)
-4. You'll find:
-   - **Project URL** → Use for `VITE_SUPABASE_URL`
-   - **Project Reference ID** → Use for `VITE_SUPABASE_PROJECT_ID` (the alphanumeric string in your project URL)
-   - **anon/public key** → Use for `VITE_SUPABASE_PUBLISHABLE_KEY`
+4. Environment Variables
 
-### 4. Edge Functions Setup
+Create a .env file in the project root:
 
-Edge functions are in `supabase/functions/`. Deploy them using Supabase CLI:
+VITE_SUPABASE_PROJECT_ID="your-mjis-project-id"
+VITE_SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
+VITE_SUPABASE_URL="https://your-mjis-project-id.supabase.co"
 
-```bash
-# Install Supabase CLI
+Find these values in the Supabase Dashboard under the project's API settings.
+
+Security: Never place the Supabase service-role key, TextBee API key, or other server-side secrets in VITE_* variables or client-side code.
+
+5. Edge Functions
+
+MJIS uses Supabase Edge Functions for server-side integrations and protected operations.
+
+Install the Supabase CLI and log in:
+
 npm install -g supabase
-
-# Login to Supabase
 supabase login
 
-# Link to your project
-supabase link --project-ref your-project-id
+Link the MJIS Supabase project:
 
-# Deploy all functions
+supabase link --project-ref your-mjis-project-id
+
+Deploy functions:
+
 supabase functions deploy
-```
 
-#### Edge Function Secrets
+6. SMS Configuration (TextBee)
 
-Set these secrets in your Supabase dashboard (**Settings > Edge Functions > Secrets**):
+SMS features use TextBee through Supabase Edge Functions.
 
-| Secret Name | Description | Where to Find |
-|-------------|-------------|---------------|
-| `RESEND_API_KEY` | API key for email notifications | [resend.com](https://resend.com) → API Keys |
-| `SUPABASE_URL` | Your Supabase project URL | Settings > API → Project URL |
-| `SUPABASE_ANON_KEY` | Your Supabase anon/public key | Settings > API → anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key | Settings > API → service_role key (keep secret!) |
-| `CRON_SECRET` | Random string for cron security | Generate your own (e.g., `openssl rand -hex 32`) |
+Set the TextBee API key as a Supabase secret:
 
-> **Note:** The `service_role` key has full database access and bypasses RLS. Never expose it in client-side code.
+supabase secrets set TEXTBEE_API_KEY="your-textbee-api-key"
 
-### 5. Cron Jobs (Optional)
+For Supabase Auth phone OTP delivery, also configure the Send SMS Auth Hook secret in Supabase and store the hook secret securely as a Supabase Edge Function secret.
 
-For automated reminders and notifications, set up cron jobs manually via the SQL Editor. 
+Important: TextBee credentials and Supabase Auth Hook secrets must never be exposed in the frontend.
 
-> **Important:** Cron jobs are NOT included in migrations because they contain project-specific URLs and secrets. You must set these up manually after deployment.
+7. Optional Email Configuration
 
-#### Prerequisites
-First, enable the required extensions (if not already enabled):
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
-```
+Where email notifications are enabled for MJIS, configure the required Resend and Supabase server-side secrets in the Supabase project.
 
-#### Available Cron Jobs
+Typical server-side secrets may include:
 
-Replace `your-project-id` with your actual Supabase project ID and `YOUR_CRON_SECRET` with your cron secret.
+Secret Name
 
-```sql
--- 1. Attendance reminders (every 10 min during work hours, Mon-Sat)
+Purpose
+
+RESEND_API_KEY
+
+Resend email delivery
+
+SUPABASE_URL
+
+Server-side Supabase access
+
+SUPABASE_ANON_KEY
+
+Server-side Supabase API access where required
+
+SUPABASE_SERVICE_ROLE_KEY
+
+Protected server-side operations only
+
+CRON_SECRET
+
+Securing scheduled function requests
+
+The SUPABASE_SERVICE_ROLE_KEY has elevated access and must remain server-side only.
+
+8. Cron Jobs (Optional)
+
+Scheduled MJIS notifications/reminders can be configured through Supabase Cron and pg_net.
+
+Before enabling any scheduled job:
+
+Enable pg_cron and pg_net.
+
+Deploy the relevant Edge Function.
+
+Store any required secret, such as CRON_SECRET, in Supabase.
+
+Configure the job URL for the actual MJIS Supabase project.
+
+Example pattern:
+
 SELECT cron.schedule(
-  'attendance-reminders-job',
-  '*/10 8-19 * * 1-6',
-  $$
-  SELECT net.http_post(
-    url:='https://your-project-id.supabase.co/functions/v1/attendance-reminders',
-    headers:=jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer YOUR_CRON_SECRET'
-    ),
-    body:='{}'::jsonb
-  );
-  $$
-);
-
--- 2. Goal reminders (daily at 9 AM UTC)
-SELECT cron.schedule(
-  'daily-goal-reminders',
+  'mjis-scheduled-job',
   '0 9 * * *',
   $$
   SELECT net.http_post(
-    url:='https://your-project-id.supabase.co/functions/v1/goal-reminders',
+    url:='https://your-mjis-project-id.supabase.co/functions/v1/your-function',
     headers:=jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer YOUR_CRON_SECRET'
@@ -202,157 +237,147 @@ SELECT cron.schedule(
   $$
 );
 
--- 3. Onboarding reminders (daily at 9 AM UTC)
-SELECT cron.schedule(
-  'onboarding-reminders-daily',
-  '0 9 * * *',
-  $$
-  SELECT net.http_post(
-    url:='https://your-project-id.supabase.co/functions/v1/onboarding-reminders',
-    headers:=jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer YOUR_CRON_SECRET'
-    ),
-    body:='{}'::jsonb
-  );
-  $$
-);
+View scheduled jobs:
 
--- 4. Weekly event notifications (every Monday at 8 AM UTC)
-SELECT cron.schedule(
-  'weekly-event-notifications',
-  '0 8 * * 1',
-  $$
-  SELECT net.http_post(
-    url:='https://your-project-id.supabase.co/functions/v1/event-notification',
-    headers:=jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer YOUR_CRON_SECRET'
-    ),
-    body:='{}'::jsonb
-  );
-  $$
-);
-```
-
-#### Managing Cron Jobs
-```sql
--- View all scheduled jobs
 SELECT * FROM cron.job;
 
--- Unschedule a job by name
-SELECT cron.unschedule('job-name');
-```
+Remove a job:
 
-### 6. Run Locally
+SELECT cron.unschedule('mjis-scheduled-job');
 
-```bash
+9. Run Locally
+
 npm run dev
-```
 
-Open [http://localhost:5173](http://localhost:5173)
+Open the local Vite URL shown in the terminal.
 
-### 7. Create Initial Admin User
+10. Create the Initial MJIS Admin
 
-1. Sign up through the app
-2. In Supabase SQL Editor, promote yourself to admin:
+Create an account through the MJIS application.
 
-```sql
--- Find your user ID
+In the Supabase SQL Editor, find the user:
+
 SELECT id, email FROM auth.users WHERE email = 'your-email@example.com';
 
--- Add admin role
-INSERT INTO user_roles (user_id, role) 
+Assign the admin role:
+
+INSERT INTO user_roles (user_id, role)
 VALUES ('your-user-id', 'admin')
 ON CONFLICT (user_id, role) DO NOTHING;
-```
 
-## Deployment
+Deployment
 
-### Automatic Version Sync
+Vercel / Netlify
 
-When deploying, the `APP_VERSION` is automatically updated from the latest git tag. This ensures your deployed instance shows the correct version in the changelog.
+Connect the GitHub repository:
+https://github.com/ranjeetkumarpandeyy/MJIS
 
-**How it works:**
-- The CI/CD workflows (Vercel, Netlify) run `scripts/update-version.sh` before building
-- The script reads the latest git tag (e.g., `v1.0.1`) and updates `src/lib/version.ts`
-- The version is then baked into the build
+Set the MJIS VITE_* environment variables in the deployment platform.
 
-**For manual deployments:**
-```bash
-# Ensure you have the latest tags
-git fetch --tags
+Build command:
 
-# Update version before building
-chmod +x scripts/update-version.sh
-./scripts/update-version.sh
-
-# Then build
 npm run build
-```
 
-### Vercel / Netlify
+Output directory:
 
-1. Connect your repository
-2. Set environment variables in the platform's dashboard
-3. Build command: `npm run build`
-4. Output directory: `dist`
+dist
 
-> **Note:** The GitHub Actions workflows already handle version syncing automatically.
+Configure SPA routing so application routes resolve to index.html.
 
-### Docker
+After deployment, update the Supabase Authentication Site URL and Redirect URLs to the production MJIS domain.
 
-```dockerfile
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+Update Google/Facebook OAuth settings with the final MJIS production domain where applicable.
 
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-EXPOSE 80
-```
+Production Environment Checklist
 
-## Project Structure
+Before going live, verify:
 
-```
+Supabase production URL and publishable key are configured
+
+Database migrations are applied
+
+Storage buckets and policies are configured
+
+Authentication providers are configured
+
+OAuth redirect URLs match the production domain
+
+TextBee SMS integration is working
+
+Supabase Auth SMS hook is configured when phone OTP is enabled
+
+Server-side secrets are stored only in Supabase secrets
+
+Public website forms submit successfully
+
+HR/Admin dashboards receive career, work enquiry, and contact submissions
+
+Employee salary slips are available to the correct authenticated employees
+
+SPA routing works on direct page refreshes
+
+Project Structure
+
 ├── src/
-│   ├── components/      # React components
-│   │   ├── ui/          # shadcn/ui components
-│   │   ├── dashboard/   # Dashboard widgets
-│   │   ├── employees/   # Employee management
-│   │   ├── leaves/      # Leave management
-│   │   ├── payroll/     # Payroll components
+│   ├── assets/           # MJIS branding and static assets
+│   ├── components/       # Shared React components
+│   │   ├── ui/           # shadcn/ui components
+│   │   ├── dashboard/    # Dashboard widgets
+│   │   ├── employees/    # Employee management
+│   │   ├── leaves/       # Leave management
+│   │   ├── payroll/      # Payroll and salary slip components
 │   │   └── ...
-│   ├── contexts/        # React contexts (Auth)
-│   ├── hooks/           # Custom React hooks
-│   ├── pages/           # Page components
-│   ├── lib/             # Utility functions
-│   └── integrations/    # Supabase client & types
+│   ├── contexts/         # Authentication and application contexts
+│   ├── hooks/            # Custom hooks
+│   ├── integrations/     # Supabase and SMS integrations
+│   ├── lib/              # Utility functions and PDF helpers
+│   └── pages/            # Public website and HRMS pages
 ├── supabase/
-│   ├── functions/       # Edge functions
-│   └── migrations/      # Database migrations
-└── public/              # Static assets
-```
+│   ├── functions/        # Supabase Edge Functions
+│   └── migrations/       # MJIS database migrations
+├── public/               # Public static assets and PWA files
+└── README.md
 
-## User Roles
+User Roles
 
-| Role | Permissions |
-|------|-------------|
-| `admin` | Full system access, user management |
-| `hr` | Employee management, payroll, reports |
-| `manager` | Team management, leave approvals |
-| `employee` | Self-service (profile, leaves, documents) |
+Role
 
-## Contributing
+Permissions
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+admin
 
-## License
+Full MJIS system access and user/role management
 
-MIT License - feel free to use this for your own projects.
+hr
+
+Employee management, payroll, recruitment, reports, and HR operations
+
+manager
+
+Team management and leave approval functions
+
+employee
+
+Employee self-service including profile, leaves, documents, attendance, and salary slips
+
+MJIS Public Website
+
+The public MJIS website provides the company-facing experience for visitors and includes sections and forms for:
+
+Company introduction and services
+
+Projects and business information
+
+Career opportunities and applications
+
+Work/business enquiries
+
+Contact messages
+
+Login access to the MJIS HRMS portal
+
+Public form submissions are stored in Supabase and surfaced to authorized HR/Admin users through the MJIS application.
+
+License
+
+This project is maintained for Maa Janki Industrial Services (MJIS).
