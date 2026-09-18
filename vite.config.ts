@@ -45,8 +45,8 @@ export default defineConfig(({ mode }) => ({
         importScripts: ["sw-push.js"],
       },
       manifest: {
-        name: "Peoplo - HR Management System",
-        short_name: "Peoplo",
+        name: "MJIS - HR Management System",
+        short_name: "MJIS",
         description: "Comprehensive HR management system for employee onboarding, leave tracking, asset management, and payroll processing.",
         theme_color: "#0284C5",
         background_color: "#edf3f7",

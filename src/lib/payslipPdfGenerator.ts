@@ -105,7 +105,7 @@ export function generatePayslipPDF(data: PayslipData): jsPDF {
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "normal");
-  doc.text(data.companyName || "PEOPLO HR", center, currentY, { align: "center" });
+  doc.text(data.companyName || "MJIS HR", center, currentY, { align: "center" });
   currentY += 8;
 
   if (data.companyAddress) {

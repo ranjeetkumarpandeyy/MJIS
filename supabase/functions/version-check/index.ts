@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const GITHUB_REPO = "redmonkin/core-hr-hub";
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases`;
-const APP_URL = Deno.env.get("APP_URL") ?? "https://peoplo.redmonk.in";
+const APP_URL = Deno.env.get("APP_URL") ?? "https://www.ranjeetpandey.in";
 
 interface GitHubRelease {
   tag_name: string;
@@ -125,7 +125,7 @@ async function fetchGitHubReleases(): Promise<{ changelog: ChangelogEntry[]; cur
   const response = await fetch(GITHUB_API_URL, {
     headers: {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Peoplo-Version-Check',
+      'User-Agent': 'MJIS-Version-Check',
     },
   });
   
@@ -168,7 +168,7 @@ const FALLBACK_DATA = {
       date: "2025-01-19",
       type: "major" as const,
       title: "Initial Release",
-      description: "First stable release of Peoplo HR Management System",
+      description: "First stable release of MJIS HR Management System",
       changes: [
         { type: "feature", text: "Complete employee management with CRUD operations" },
         { type: "feature", text: "Leave management with approval workflows" },

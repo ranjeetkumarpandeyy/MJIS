@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,12 +30,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useDepartments } from "@/hooks/useEmployees";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useIsAdminOrHR, useUserRole } from "@/hooks/useUserRole";
+import { useIsAdminOrHR } from "@/hooks/useUserRole";
 import { UserRolesManager } from "@/components/settings/UserRolesManager";
 import { EmployeeCodeSettings } from "@/components/settings/EmployeeCodeSettings";
 import DomainWhitelistSettings from "@/components/settings/DomainWhitelistSettings";
 import OfficeLocationSettings from "@/components/settings/OfficeLocationSettings";
 import { BrandingSettings } from "@/components/settings/BrandingSettings";
+import { demoteMyselfToEmployee, getAdminCount } from "@/lib/roleDemotion";
 
 // Fetch leave types
 const useLeaveTypes = () => {
@@ -72,6 +72,48 @@ const Settings = () => {
   const queryClient = useQueryClient();
   const { isAdminOrHR, isLoading: roleLoading, role } = useIsAdminOrHR();
   const isAdmin = role === 'admin';
+
+  const [adminCount, setAdminCount] = useState<number | null>(null);
+  const [loadingAdminCount, setLoadingAdminCount] = useState(false);
+  const [demotingSelf, setDemotingSelf] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setAdminCount(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAdminCount = async () => {
+      setLoadingAdminCount(true);
+
+      try {
+        const count = await getAdminCount();
+        if (!cancelled) setAdminCount(count);
+      } catch (error) {
+        if (!cancelled) {
+          setAdminCount(null);
+          toast({
+            title: "Admin count unavailable",
+            description:
+              error instanceof Error
+                ? error.message
+                : "Could not check the current administrator count.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingAdminCount(false);
+      }
+    };
+
+    loadAdminCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, toast]);
   
   // Department state
   const [deptDialogOpen, setDeptDialogOpen] = useState(false);
@@ -273,6 +315,54 @@ const Settings = () => {
   const isDeptSaving = createDeptMutation.isPending || updateDeptMutation.isPending;
   const isLeaveSaving = createLeaveMutation.isPending || updateLeaveMutation.isPending;
 
+  const handleDemoteToEmployee = async () => {
+    if (!isAdmin || demotingSelf) return;
+
+    if (adminCount === 1) {
+      toast({
+        title: "Role change blocked",
+        description:
+          "You are the last administrator. Another administrator must exist before you can change yourself to Employee.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Change your access from Administrator to Employee?\n\n" +
+        "You will immediately lose Admin, HR and Manager permissions.\n\n" +
+        "Your employee profile, payroll, attendance, leave history and documents will remain."
+    );
+
+    if (!confirmed) return;
+
+    setDemotingSelf(true);
+
+    try {
+      await demoteMyselfToEmployee();
+      await supabase.auth.refreshSession();
+
+      toast({
+        title: "Access changed successfully",
+        description: "Your account is now an Employee account.",
+      });
+
+      // Full reload guarantees the fresh role is picked up throughout the app.
+      window.location.replace("/profile");
+    } catch (error) {
+      toast({
+        title: "Role change blocked",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Another administrator must exist before you can leave the Admin role.",
+        variant: "destructive",
+      });
+    } finally {
+      setDemotingSelf(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -280,6 +370,49 @@ const Settings = () => {
           <h2 className="text-2xl font-bold text-foreground">Settings</h2>
           <p className="text-muted-foreground">Manage system configurations</p>
         </div>
+
+        {isAdmin && (
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-destructive" />
+                My Access
+              </CardTitle>
+              <CardDescription>
+                Change your own administrator access without deleting your employee data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-border p-4 text-sm">
+                <p className="font-medium">Change myself to Employee</p>
+                <p className="mt-1 text-muted-foreground">
+                  This removes your Admin, HR and Manager roles and ensures the Employee role.
+                  Your employee profile, payroll, attendance, leave history and documents stay intact.
+                </p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {loadingAdminCount
+                    ? "Checking administrator count..."
+                    : adminCount === null
+                      ? "Administrator count is unavailable. Database protection still applies."
+                      : `Current administrators: ${adminCount}`}
+                </p>
+              </div>
+
+              <Button
+                variant="destructive"
+                onClick={handleDemoteToEmployee}
+                disabled={demotingSelf || loadingAdminCount || adminCount === 1}
+              >
+                {demotingSelf && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {adminCount === 1
+                  ? "Cannot change — you are the last Admin"
+                  : demotingSelf
+                    ? "Changing access..."
+                    : "Change Myself to Employee"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-10 sm:w-auto">

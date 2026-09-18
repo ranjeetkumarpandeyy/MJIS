@@ -71,7 +71,7 @@ export function drawPdfHeader(
   doc.setTextColor(...PDF_COLORS.dark);
   doc.setFontSize(15);
   doc.setFont("helvetica", "bold");
-  doc.text(companyName || "PEOPLO HR", textX, 15);
+  doc.text(companyName || "MJIS HR", textX, 15);
 
   if (companyAddress) {
     doc.setTextColor(...PDF_COLORS.gray);

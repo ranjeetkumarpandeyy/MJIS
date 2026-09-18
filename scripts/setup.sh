@@ -10,7 +10,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 HOOKS_DIR="$PROJECT_ROOT/.git/hooks"
 CUSTOM_HOOKS_DIR="$PROJECT_ROOT/scripts/hooks"
 
-echo "🔧 Setting up Peoplo development environment..."
+echo "🔧 Setting up MJIS development environment..."
 echo ""
 
 # Check if we're in a git repository

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const APP_VERSION = "1.1.1";
 
 // Production API URL for version checking (used by self-hosted instances)
-export const VERSION_API_URL = "https://peoplo.redmonk.in/functions/v1/version-check";
+export const VERSION_API_URL = "https://www.ranjeetpandey.in";
 
 export interface ChangelogEntry {
   version: string;
@@ -56,7 +56,7 @@ const LOCAL_CHANGELOG: ChangelogEntry[] = [
     date: "2025-01-19",
     type: "major",
     title: "Initial Release",
-    description: "First stable release of Peoplo HR Management System",
+    description: "First stable release of MJIS HR Management System",
     changes: [
       { type: "feature", text: "Complete employee management with CRUD operations" },
       { type: "feature", text: "Leave management with approval workflows" },
@@ -80,8 +80,8 @@ export const FALLBACK_VERSION_RESPONSE: VersionResponse = {
   releaseDate: "2026-07-22",
   changelog: LOCAL_CHANGELOG,
   hasUpdate: false,
-  updateUrl: "https://github.com/redmonkin/core-hr-hub/releases",
-  documentationUrl: "https://peoplo.redmonk.in",
+  updateUrl: "https://github.com/ranjeetkumarpandeyy",
+  documentationUrl: "https://www.ranjeetpandey.in",
 };
 
 // Detect if running in an auto-updating environment (Lovable Cloud / production)
@@ -90,8 +90,8 @@ export function isAutoUpdatingEnvironment(): boolean {
   const hostname = window.location.hostname;
   return (
     hostname.includes("lovable") ||
-    hostname === "peoplo.redmonk.in" ||
-    hostname.endsWith(".redmonk.in")
+    hostname === "ranjeetpandey.in" ||
+    hostname.endsWith(".ranjeetpandey.in")
   );
 }
 

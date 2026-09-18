@@ -1,10 +1,10 @@
 # Release Process
 
-This document describes how to create a new release of Peoplo.
+This document describes how to create a new release of MJIS.
 
 ## Version Numbering
 
-Peoplo follows [Semantic Versioning](https://semver.org/):
+MJIS follows [Semantic Versioning](https://www.ranjeetpandey.in/):
 
 - **Major** (X.0.0): Breaking changes that require migration
 - **Minor** (0.X.0): New features, backward compatible

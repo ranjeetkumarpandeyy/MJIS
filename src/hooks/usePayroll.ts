@@ -24,8 +24,18 @@ export interface PayrollRecord {
 }
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 export function usePayrollRecords(month?: number, year?: number) {
@@ -58,6 +68,7 @@ export function usePayrollRecords(month?: number, year?: number) {
       if (month !== undefined) {
         query = query.eq("month", month);
       }
+
       if (year !== undefined) {
         query = query.eq("year", year);
       }
@@ -71,7 +82,7 @@ export function usePayrollRecords(month?: number, year?: number) {
         employeeId: record.employee_id,
         employeeCode: record.employee?.employee_code || "",
         employee: {
-          name: `${record.employee?.first_name} ${record.employee?.last_name}`,
+          name: `${record.employee?.first_name || ""} ${record.employee?.last_name || ""}`.trim(),
           email: record.employee?.email || "",
           avatar: record.employee?.avatar_url || undefined,
         },
@@ -82,8 +93,15 @@ export function usePayrollRecords(month?: number, year?: number) {
         allowances: Number(record.total_allowances),
         deductions: Number(record.total_deductions),
         netSalary: Number(record.net_salary),
-        status: record.status === "draft" ? "pending" : record.status === "processed" ? "processing" : "paid",
-        paidAt: record.paid_at ? format(new Date(record.paid_at), "MMM d, yyyy") : undefined,
+        status:
+          record.status === "draft"
+            ? "pending"
+            : record.status === "processed"
+              ? "processing"
+              : "paid",
+        paidAt: record.paid_at
+          ? format(new Date(record.paid_at), "MMM d, yyyy")
+          : undefined,
       }));
     },
   });
@@ -110,9 +128,19 @@ export function usePayrollStats() {
         .select("id")
         .eq("status", "active");
 
-      const totalPayroll = records?.reduce((sum, r) => sum + Number(r.net_salary), 0) || 0;
-      const pending = records?.filter((r) => r.status === "draft").length || 0;
-      const avgSalary = records?.length ? totalPayroll / records.length : 0;
+      const totalPayroll =
+        records?.reduce(
+          (sum, r) => sum + Number(r.net_salary),
+          0
+        ) || 0;
+
+      const pending =
+        records?.filter((r) => r.status === "draft").length || 0;
+
+      const avgSalary =
+        records?.length
+          ? totalPayroll / records.length
+          : 0;
 
       return {
         totalPayroll,
@@ -124,24 +152,58 @@ export function usePayrollStats() {
   });
 }
 
+/**
+ * Generate payroll for a month/year.
+ *
+ * IMPORTANT:
+ * This function does NOT stop when payroll already exists for the month.
+ * It generates records only for ACTIVE employees who:
+ *   1. have a salary structure, and
+ *   2. do not already have a payroll record for that month/year.
+ *
+ * This allows newly joined employees to receive payroll/slips even when
+ * the month's payroll was already generated for existing employees.
+ */
 export function useGeneratePayroll() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ month, year }: { month: number; year: number }) => {
-      // Check if payroll already exists for this month
-      const { data: existingRecords } = await supabase
-        .from("payroll_records")
-        .select("id")
-        .eq("month", month)
-        .eq("year", year);
+    mutationFn: async ({
+      month,
+      year,
+    }: {
+      month: number;
+      year: number;
+    }) => {
+      // ------------------------------------------------------------
+      // 1. Get active employees.
+      // ------------------------------------------------------------
+      const { data: activeEmployees, error: employeeError } =
+        await supabase
+          .from("employees")
+          .select("id")
+          .eq("status", "active");
 
-      if (existingRecords && existingRecords.length > 0) {
-        throw new Error("Payroll already exists for this month");
+      if (employeeError) {
+        throw employeeError;
       }
 
-      // Get all active employees with their salary structures
-      const { data: salaryStructures, error: salaryError } = await supabase
+      const activeEmployeeIds =
+        activeEmployees?.map((employee) => employee.id) || [];
+
+      if (activeEmployeeIds.length === 0) {
+        throw new Error(
+          "No active employees found."
+        );
+      }
+
+      // ------------------------------------------------------------
+      // 2. Get salary structures for active employees only.
+      // ------------------------------------------------------------
+      const {
+        data: salaryStructures,
+        error: salaryError,
+      } = await supabase
         .from("salary_structures")
         .select(`
           employee_id,
@@ -152,55 +214,130 @@ export function useGeneratePayroll() {
           other_allowances,
           tax_deduction,
           pf_deduction
-        `);
+        `)
+        .in("employee_id", activeEmployeeIds);
 
-      if (salaryError) throw salaryError;
-
-      if (!salaryStructures || salaryStructures.length === 0) {
-        throw new Error("No salary structures found. Please set up salary structures for employees first.");
+      if (salaryError) {
+        throw salaryError;
       }
 
-      // Generate payroll records
-      const payrollRecords = salaryStructures.map((salary) => {
-        const totalAllowances =
-          Number(salary.hra || 0) +
-          Number(salary.transport_allowance || 0) +
-          Number(salary.medical_allowance || 0) +
-          Number(salary.other_allowances || 0);
+      if (
+        !salaryStructures ||
+        salaryStructures.length === 0
+      ) {
+        throw new Error(
+          "No salary structures found. Please set up salary structures for active employees first."
+        );
+      }
 
-        const totalDeductions =
-          Number(salary.tax_deduction || 0) +
-          Number(salary.pf_deduction || 0);
+      // ------------------------------------------------------------
+      // 3. Check which employees already have payroll for this
+      //    month/year.
+      // ------------------------------------------------------------
+      const salaryEmployeeIds =
+        salaryStructures.map(
+          (salary) => salary.employee_id
+        );
 
-        const netSalary =
-          Number(salary.basic_salary) + totalAllowances - totalDeductions;
+      const { data: existingRecords, error: existingError } =
+        await supabase
+          .from("payroll_records")
+          .select("employee_id")
+          .eq("month", month)
+          .eq("year", year)
+          .in("employee_id", salaryEmployeeIds);
 
+      if (existingError) {
+        throw existingError;
+      }
+
+      const existingEmployeeIds = new Set(
+        (existingRecords || []).map(
+          (record) => record.employee_id
+        )
+      );
+
+      // ------------------------------------------------------------
+      // 4. Keep only employees who are missing a payroll record.
+      // ------------------------------------------------------------
+      const missingSalaryStructures =
+        salaryStructures.filter(
+          (salary) =>
+            !existingEmployeeIds.has(
+              salary.employee_id
+            )
+        );
+
+      if (missingSalaryStructures.length === 0) {
         return {
-          employee_id: salary.employee_id,
-          month,
-          year,
-          basic_salary: salary.basic_salary,
-          total_allowances: totalAllowances,
-          total_deductions: totalDeductions,
-          net_salary: netSalary,
-          status: "draft" as const,
+          count: 0,
+          skipped: salaryStructures.length,
         };
-      });
+      }
+
+      // ------------------------------------------------------------
+      // 5. Create payroll records only for the missing employees.
+      // ------------------------------------------------------------
+      const payrollRecords =
+        missingSalaryStructures.map((salary) => {
+          const totalAllowances =
+            Number(salary.hra || 0) +
+            Number(salary.transport_allowance || 0) +
+            Number(salary.medical_allowance || 0) +
+            Number(salary.other_allowances || 0);
+
+          const totalDeductions =
+            Number(salary.tax_deduction || 0) +
+            Number(salary.pf_deduction || 0);
+
+          const netSalary =
+            Number(salary.basic_salary || 0) +
+            totalAllowances -
+            totalDeductions;
+
+          return {
+            employee_id: salary.employee_id,
+            month,
+            year,
+            basic_salary: Number(
+              salary.basic_salary || 0
+            ),
+            total_allowances: totalAllowances,
+            total_deductions: totalDeductions,
+            net_salary: netSalary,
+            status: "draft" as const,
+          };
+        });
 
       const { error: insertError } = await supabase
         .from("payroll_records")
         .insert(payrollRecords);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
 
-      return { count: payrollRecords.length };
+      return {
+        count: payrollRecords.length,
+        skipped: existingEmployeeIds.size,
+      };
     },
+
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["payroll-records"] });
-      queryClient.invalidateQueries({ queryKey: ["payroll-stats"] });
+      queryClient.invalidateQueries({
+        queryKey: ["payroll-records"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["payroll-stats"],
+      });
     },
+
     onError: (error) => {
-      toast.error("Failed to generate payroll: " + error.message);
+      toast.error(
+        "Failed to generate payroll: " +
+          error.message
+      );
     },
   });
 }
@@ -209,12 +346,21 @@ export function useUpdatePayrollStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "draft" | "processed" | "paid" }) => {
-      const updateData: { status: "draft" | "processed" | "paid"; paid_at?: string | null } = { status };
-      
-      // Set paid_at when marking as paid, clear it otherwise
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "draft" | "processed" | "paid";
+    }) => {
+      const updateData: {
+        status: "draft" | "processed" | "paid";
+        paid_at?: string | null;
+      } = { status };
+
       if (status === "paid") {
-        updateData.paid_at = new Date().toISOString();
+        updateData.paid_at =
+          new Date().toISOString();
       } else {
         updateData.paid_at = null;
       }
@@ -226,12 +372,22 @@ export function useUpdatePayrollStatus() {
 
       if (error) throw error;
     },
+
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["payroll-records"] });
-      queryClient.invalidateQueries({ queryKey: ["payroll-stats"] });
+      queryClient.invalidateQueries({
+        queryKey: ["payroll-records"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["payroll-stats"],
+      });
     },
+
     onError: (error) => {
-      toast.error("Failed to update payroll status: " + error.message);
+      toast.error(
+        "Failed to update payroll status: " +
+          error.message
+      );
     },
   });
 }
@@ -240,11 +396,21 @@ export function useBulkUpdatePayrollStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ ids, status }: { ids: string[]; status: "draft" | "processed" | "paid" }) => {
-      const updateData: { status: "draft" | "processed" | "paid"; paid_at?: string | null } = { status };
-      
+    mutationFn: async ({
+      ids,
+      status,
+    }: {
+      ids: string[];
+      status: "draft" | "processed" | "paid";
+    }) => {
+      const updateData: {
+        status: "draft" | "processed" | "paid";
+        paid_at?: string | null;
+      } = { status };
+
       if (status === "paid") {
-        updateData.paid_at = new Date().toISOString();
+        updateData.paid_at =
+          new Date().toISOString();
       } else {
         updateData.paid_at = null;
       }
@@ -255,15 +421,25 @@ export function useBulkUpdatePayrollStatus() {
         .in("id", ids);
 
       if (error) throw error;
-      
+
       return { count: ids.length };
     },
+
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["payroll-records"] });
-      queryClient.invalidateQueries({ queryKey: ["payroll-stats"] });
+      queryClient.invalidateQueries({
+        queryKey: ["payroll-records"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["payroll-stats"],
+      });
     },
+
     onError: (error) => {
-      toast.error("Failed to update payroll status: " + error.message);
+      toast.error(
+        "Failed to update payroll status: " +
+          error.message
+      );
     },
   });
 }
@@ -315,39 +491,60 @@ export function useSalaryStructures() {
 
       if (error) throw error;
 
-      return (data || []).map((structure): SalaryStructure => {
-        const totalAllowances =
-          Number(structure.hra || 0) +
-          Number(structure.transport_allowance || 0) +
-          Number(structure.medical_allowance || 0) +
-          Number(structure.other_allowances || 0);
+      return (data || []).map(
+        (structure): SalaryStructure => {
+          const totalAllowances =
+            Number(structure.hra || 0) +
+            Number(structure.transport_allowance || 0) +
+            Number(structure.medical_allowance || 0) +
+            Number(structure.other_allowances || 0);
 
-        const totalDeductions =
-          Number(structure.tax_deduction || 0) +
-          Number(structure.pf_deduction || 0);
+          const totalDeductions =
+            Number(structure.tax_deduction || 0) +
+            Number(structure.pf_deduction || 0);
 
-        const netSalary =
-          Number(structure.basic_salary) + totalAllowances - totalDeductions;
+          const netSalary =
+            Number(structure.basic_salary || 0) +
+            totalAllowances -
+            totalDeductions;
 
-        return {
-          id: structure.id,
-          employeeId: structure.employee_id,
-          employeeName: `${structure.employee?.first_name} ${structure.employee?.last_name}`,
-          employeeEmail: structure.employee?.email || "",
-          employeeAvatar: structure.employee?.avatar_url || undefined,
-          basicSalary: Number(structure.basic_salary),
-          hra: Number(structure.hra || 0),
-          transportAllowance: Number(structure.transport_allowance || 0),
-          medicalAllowance: Number(structure.medical_allowance || 0),
-          otherAllowances: Number(structure.other_allowances || 0),
-          taxDeduction: Number(structure.tax_deduction || 0),
-          pfDeduction: Number(structure.pf_deduction || 0),
-          effectiveFrom: structure.effective_from,
-          totalAllowances,
-          totalDeductions,
-          netSalary,
-        };
-      });
+          return {
+            id: structure.id,
+            employeeId: structure.employee_id,
+            employeeName:
+              `${structure.employee?.first_name || ""} ${structure.employee?.last_name || ""}`.trim(),
+            employeeEmail:
+              structure.employee?.email || "",
+            employeeAvatar:
+              structure.employee?.avatar_url ||
+              undefined,
+            basicSalary: Number(
+              structure.basic_salary
+            ),
+            hra: Number(structure.hra || 0),
+            transportAllowance: Number(
+              structure.transport_allowance || 0
+            ),
+            medicalAllowance: Number(
+              structure.medical_allowance || 0
+            ),
+            otherAllowances: Number(
+              structure.other_allowances || 0
+            ),
+            taxDeduction: Number(
+              structure.tax_deduction || 0
+            ),
+            pfDeduction: Number(
+              structure.pf_deduction || 0
+            ),
+            effectiveFrom:
+              structure.effective_from,
+            totalAllowances,
+            totalDeductions,
+            netSalary,
+          };
+        }
+      );
     },
   });
 }
@@ -368,18 +565,29 @@ export function useCreateSalaryStructure() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: CreateSalaryStructureData) => {
+    mutationFn: async (
+      data: CreateSalaryStructureData
+    ) => {
       const { error } = await supabase
         .from("salary_structures")
-        .upsert(data, { onConflict: "employee_id" });
+        .upsert(data, {
+          onConflict: "employee_id",
+        });
 
       if (error) throw error;
     },
+
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary-structures"],
+      });
     },
+
     onError: (error) => {
-      toast.error("Failed to save salary structure: " + error.message);
+      toast.error(
+        "Failed to save salary structure: " +
+          error.message
+      );
     },
   });
 }
@@ -388,7 +596,12 @@ export function useUpdateSalaryStructure() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Partial<CreateSalaryStructureData>) => {
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+    } & Partial<CreateSalaryStructureData>) => {
       const { error } = await supabase
         .from("salary_structures")
         .update(data)
@@ -396,11 +609,18 @@ export function useUpdateSalaryStructure() {
 
       if (error) throw error;
     },
+
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary-structures"],
+      });
     },
+
     onError: (error) => {
-      toast.error("Failed to update salary structure: " + error.message);
+      toast.error(
+        "Failed to update salary structure: " +
+          error.message
+      );
     },
   });
 }
@@ -417,11 +637,18 @@ export function useDeleteSalaryStructure() {
 
       if (error) throw error;
     },
+
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary-structures"],
+      });
     },
+
     onError: (error) => {
-      toast.error("Failed to delete salary structure: " + error.message);
+      toast.error(
+        "Failed to delete salary structure: " +
+          error.message
+      );
     },
   });
 }

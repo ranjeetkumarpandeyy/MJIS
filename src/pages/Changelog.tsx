@@ -139,7 +139,7 @@ export default function Changelog() {
             </Button>
             <Button size="sm" asChild>
               <a
-                href="https://github.com/redmonk-org/peoplo/releases"
+                href="https://github.com/RANJEETKUMARPANDEYY"
                 target="_blank"
                 rel="noopener noreferrer"
               >

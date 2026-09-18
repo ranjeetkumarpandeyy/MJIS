@@ -66,7 +66,7 @@ const plans = [
       "Onboarding assistance"
     ],
     cta: "Contact Sales",
-    ctaLink: "https://cal.com/littlemissbot/business-consultancy",
+    ctaLink: "https://paymentpageforme.netlify.app/",
     variant: "outline" as const,
     highlight: false
   }
@@ -119,7 +119,7 @@ const Pricing = () => {
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>
             {isProduction && (
-              <a href="https://cal.com/littlemissbot/business-consultancy" target="_blank" rel="noopener noreferrer">
+              <a href="https://paymentpageforme.netlify.app/" target="_blank" rel="noopener noreferrer">
                 <Button size="sm">Request Demo</Button>
               </a>
             )}
@@ -247,7 +247,7 @@ const Pricing = () => {
                   Start Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <a href="https://cal.com/littlemissbot/business-consultancy" target="_blank" rel="noopener noreferrer">
+              <a href="https://paymentpageforme.netlify.app/" target="_blank" rel="noopener noreferrer">
                 <Button size="lg" variant="secondary" className="gap-2 px-8 h-12">
                   Talk to Sales
                 </Button>

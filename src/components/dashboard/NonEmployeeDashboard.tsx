@@ -167,7 +167,7 @@ export function NonEmployeeDashboard() {
               )}
               {request.status === "rejected" && (
                 <p className="text-center text-sm text-muted-foreground">
-                  Please contact HR directly for more information.
+                  Please contact Ranjeet Pandey +918873353652 HR directly for more information.
                 </p>
               )}
             </div>

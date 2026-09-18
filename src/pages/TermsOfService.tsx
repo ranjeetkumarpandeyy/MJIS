@@ -103,7 +103,7 @@ const TermsOfService = () => {
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>
             {isProduction && (
-              <a href="https://cal.com/littlemissbot/business-consultancy" target="_blank" rel="noopener noreferrer">
+              <a href="https://paymentpageforme.netlify.app/" target="_blank" rel="noopener noreferrer">
                 <Button size="sm">Request Demo</Button>
               </a>
             )}
@@ -136,7 +136,7 @@ const TermsOfService = () => {
           <Card className="max-w-4xl mx-auto">
             <CardContent className="p-8">
               <p className="text-muted-foreground leading-relaxed">
-                Welcome to Peoplo. By accessing or using our HR management platform and services, you agree to 
+                Welcome to MJIS Portal. By accessing or using our HR management platform and services, you agree to 
                 be bound by these Terms of Service ("Terms"). If you disagree with any part of these terms, 
                 you may not access the service. These Terms apply to all visitors, users, and others who 
                 access or use the service.

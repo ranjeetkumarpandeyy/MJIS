@@ -109,7 +109,7 @@ const Security = () => {
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>
             {isProduction && (
-              <a href="https://cal.com/littlemissbot/business-consultancy" target="_blank" rel="noopener noreferrer">
+              <a href="https://paymentpageforme.netlify.app/" target="_blank" rel="noopener noreferrer">
                 <Button size="sm">Request Demo</Button>
               </a>
             )}
