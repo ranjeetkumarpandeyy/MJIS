@@ -32,6 +32,7 @@ import {
   BriefcaseBusiness,
   UserRoundSearch,
   MessageSquareText,
+  Images,
 } from "lucide-react";
 
 import hrHubLogo from "@/assets/hr-hub-logo.svg";
@@ -140,6 +141,27 @@ const navItems: NavItem[] = [
   icon: <MessageSquareText className="h-5 w-5" />,
   adminOnly: true,
 },
+
+  /*
+   * =========================================================
+   * MJIS WEBSITE MEDIA
+   * =========================================================
+   *
+   * Admin / HR can manage public website media from:
+   *   - Service photos
+   *   - Completed project photos
+   *   - Completion certificates
+   *   - Trusted company / client logos
+   *
+   * This item uses the existing adminOnly role filtering,
+   * so the existing employee permissions stay unchanged.
+   */
+  {
+    label: "Website Media",
+    href: "/website-media",
+    icon: <Images className="h-5 w-5" />,
+    adminOnly: true,
+  },
 
   {
     label: "Calendar",
