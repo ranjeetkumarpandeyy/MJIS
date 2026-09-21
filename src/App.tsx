@@ -79,16 +79,6 @@ const WebsiteMedia = lazy(
 const EmployeeSalarySlips = lazy(
   () => import("./pages/EmployeeSalarySlips")
 );
-
-// ============================================================
-// MJIS WEBSITE MEDIA MANAGEMENT
-// Admin / HR can manage service photos, completed project media,
-// completion certificates, and trusted company/client logos.
-// ============================================================
-const WebsiteMedia = lazy(
-  () => import("./pages/WebsiteMedia")
-);
-
 // ============================================================
 // REACT QUERY
 // ============================================================
