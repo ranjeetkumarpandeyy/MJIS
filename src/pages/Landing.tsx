@@ -1,12 +1,14 @@
-import { FormEvent, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowRight,
-  Award,
   Building2,
   CheckCircle2,
   ChevronRight,
+  ExternalLink,
+  FileCheck2,
+  FileImage,
   HardHat,
   Mail,
   MapPin,
@@ -14,56 +16,65 @@ import {
   Phone,
   ShieldCheck,
   Sparkles,
+  Trash2,
+  Upload,
   Users,
   X,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import maaJankiLogo from "@/assets/maa-janki-logo.png";
+import { supabase } from "@/integrations/supabase/client";
 
 const SERVICES = [
   {
-    title: "Abrasive / Grit Blasting",
+    key: "abrasive-grit-blasting",
+    title: "Abrasive / Grit Blasting / Sand Blasting",
     description:
-      "Professional abrasive blasting and industrial surface preparation solutions.",
+      "Professional abrasive, grit and sand blasting for industrial surface preparation and coating readiness.",
     icon: HardHat,
   },
   {
+    key: "industrial-painting",
     title: "Industrial Painting",
     description:
-      "Industrial painting and protective coating solutions for demanding environments.",
+      "Industrial painting and protective coating solutions for demanding plant and infrastructure environments.",
     icon: ShieldCheck,
   },
   {
+    key: "surface-preparation",
     title: "Surface Preparation",
     description:
-      "Complete surface preparation before coating, painting and project execution.",
+      "Complete surface preparation before painting, coating and industrial finishing work.",
     icon: Sparkles,
   },
   {
+    key: "fabrication",
     title: "Fabrication",
     description:
-      "Industrial fabrication and project support with experienced manpower.",
+      "Industrial fabrication and erection support with experienced project manpower.",
     icon: Building2,
   },
   {
+    key: "scaffolding",
     title: "Scaffolding",
     description:
-      "Scaffolding support for industrial construction and maintenance requirements.",
+      "Scaffolding erection and dismantling support for industrial construction and maintenance work.",
     icon: Building2,
   },
   {
-    title: "Industrial Manpower",
+    key: "metalizing",
+    title: "Metalizing Service",
     description:
-      "Skilled and semi-skilled manpower for industrial projects and shutdowns.",
-    icon: Users,
+      "Metalizing solutions for corrosion protection and extended service life of industrial surfaces.",
+    icon: ShieldCheck,
   },
   {
-    title: "Complete Industrial Project",
+    key: "industrial-manpower",
+    title: "Industrial Manpower",
     description:
-      "End-to-end industrial project support from manpower to execution.",
-    icon: Award,
+      "Skilled and semi-skilled manpower for industrial projects, maintenance and shutdown requirements.",
+    icon: Users,
   },
 ];
 
@@ -81,13 +92,43 @@ const TRADES = [
 const INDUSTRIES = [
   "Oil & Gas",
   "Power Plants",
-  "Steel",
-  "Cement",
+  "Steel Plants",
+  "Cement Plants",
   "Petrochemical",
   "Infrastructure",
   "Manufacturing",
   "Industrial Maintenance",
 ];
+
+const SERVICE_MEDIA_BUCKET = "mjis-service-media";
+const PROJECT_MEDIA_BUCKET = "mjis-project-media";
+
+type ServiceMedia = {
+  service_key: string;
+  image_url: string;
+  image_path: string;
+};
+
+type TrustedCompany = {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  logo_path: string | null;
+  display_order: number;
+  is_active: boolean;
+};
+
+type CompletedProject = {
+  id: string;
+  title: string;
+  location: string | null;
+  completion_date: string | null;
+  description: string | null;
+  photo_url: string | null;
+  photo_path: string | null;
+  certificate_url: string | null;
+  certificate_path: string | null;
+};
 
 function inputClass() {
   return [
@@ -108,9 +149,29 @@ function makeReference(prefix: string) {
 }
 
 const Landing = () => {
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [canManageSite, setCanManageSite] = useState(false);
+  const [serviceMedia, setServiceMedia] = useState<ServiceMedia[]>([]);
+  const [completedProjects, setCompletedProjects] = useState<CompletedProject[]>([]);
+  const [trustedCompanies, setTrustedCompanies] = useState<TrustedCompany[]>([]);
+
+  const [serviceUploadKey, setServiceUploadKey] = useState(SERVICES[0].key);
+  const [serviceUploadFile, setServiceUploadFile] = useState<File | null>(null);
+  const [serviceUploadSubmitting, setServiceUploadSubmitting] = useState(false);
+  const [serviceUploadMessage, setServiceUploadMessage] = useState("");
+
+  const [projectForm, setProjectForm] = useState({
+    title: "",
+    location: "",
+    completion_date: "",
+    description: "",
+  });
+  const [projectPhoto, setProjectPhoto] = useState<File | null>(null);
+  const [projectCertificate, setProjectCertificate] = useState<File | null>(null);
+  const [projectSubmitting, setProjectSubmitting] = useState(false);
+  const [projectMessage, setProjectMessage] = useState("");
   const [loginTransitionOpen, setLoginTransitionOpen] = useState(false);
 
   const navigate = useNavigate();
@@ -177,14 +238,273 @@ const Landing = () => {
     message: "",
   });
 
-  /*
-   * KEEP EXISTING AUTH BEHAVIOUR
-   *
-   * When an authenticated user visits "/",
-   * they continue to go to the existing dashboard.
-   */
-  if (!isLoading && user) {
-    return <Navigate to="/dashboard" replace />;
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadWebsiteContent() {
+      const [serviceResult, projectResult, trustedCompanyResult] = await Promise.all([
+        supabase
+          .from("site_service_media")
+          .select("service_key, image_url, image_path, updated_at")
+          .order("service_key"),
+        supabase
+          .from("site_projects")
+          .select(
+            "id, title, location, completion_date, description, photo_url, photo_path, certificate_url, certificate_path, created_at"
+          )
+          .order("completion_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("site_trusted_companies")
+          .select("id, name, logo_url, logo_path, display_order, is_active")
+          .eq("is_active", true)
+          .order("display_order", { ascending: true })
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (serviceResult.error) {
+        console.error("Public service media load error:", serviceResult.error);
+      }
+
+      if (projectResult.error) {
+        console.error("Public project media load error:", projectResult.error);
+      }
+
+      if (trustedCompanyResult.error) {
+        console.error("Public trusted company load error:", trustedCompanyResult.error);
+      }
+
+      if (!active) return;
+
+      setServiceMedia((serviceResult.data ?? []) as ServiceMedia[]);
+      setCompletedProjects((projectResult.data ?? []) as CompletedProject[]);
+      setTrustedCompanies((trustedCompanyResult.data ?? []) as TrustedCompany[]);
+
+      if (!user) {
+        setCanManageSite(false);
+        return;
+      }
+
+      const { data: canManage } = await supabase.rpc("is_mjis_admin_or_hr");
+
+      if (!active) return;
+
+      setCanManageSite(canManage === true);
+    }
+
+    const refreshTimer = window.setInterval(() => {
+      void loadWebsiteContent();
+    }, 30000);
+
+    loadWebsiteContent().catch((error) => {
+      console.error("Website content load error:", error);
+    });
+
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+    };
+  }, [user]);
+
+  async function uploadSiteFile(
+    bucket: string,
+    path: string,
+    file: File
+  ) {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function handleServicePhotoUpload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canManageSite || !serviceUploadFile) return;
+
+    setServiceUploadSubmitting(true);
+    setServiceUploadMessage("");
+
+    try {
+      const service = SERVICES.find((item) => item.key === serviceUploadKey);
+      if (!service) throw new Error("Service not found.");
+
+      const extension = serviceUploadFile.name.split(".").pop() || "jpg";
+      const path = `services/${service.key}/${Date.now()}.${extension}`;
+
+      const imageUrl = await uploadSiteFile(
+        SERVICE_MEDIA_BUCKET,
+        path,
+        serviceUploadFile
+      );
+
+      const { data: previous } = await supabase
+        .from("site_service_media")
+        .select("image_path")
+        .eq("service_key", service.key)
+        .maybeSingle();
+
+      const { error } = await supabase.from("site_service_media").upsert(
+        {
+          service_key: service.key,
+          service_name: service.title,
+          image_url: imageUrl,
+          image_path: path,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "service_key" }
+      );
+
+      if (error) throw error;
+
+      if (previous?.image_path) {
+        await supabase.storage
+          .from(SERVICE_MEDIA_BUCKET)
+          .remove([previous.image_path]);
+      }
+
+      setServiceMedia((items) => [
+        ...items.filter((item) => item.service_key !== service.key),
+        { service_key: service.key, image_url: imageUrl, image_path: path },
+      ]);
+      setServiceUploadFile(null);
+      setServiceUploadMessage(`${service.title} photo uploaded successfully.`);
+    } catch (error) {
+      console.error("Service photo upload error:", error);
+      setServiceUploadMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to upload service photo."
+      );
+    } finally {
+      setServiceUploadSubmitting(false);
+    }
+  }
+
+  async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canManageSite) return;
+
+    setProjectSubmitting(true);
+    setProjectMessage("");
+
+    const projectId = crypto.randomUUID();
+
+    try {
+      let photoUrl: string | null = null;
+      let photoPath: string | null = null;
+      let certificateUrl: string | null = null;
+      let certificatePath: string | null = null;
+
+      if (projectPhoto) {
+        const extension = projectPhoto.name.split(".").pop() || "jpg";
+        photoPath = `projects/${projectId}/photo-${Date.now()}.${extension}`;
+        photoUrl = await uploadSiteFile(
+          PROJECT_MEDIA_BUCKET,
+          photoPath,
+          projectPhoto
+        );
+      }
+
+      if (projectCertificate) {
+        const extension = projectCertificate.name.split(".").pop() || "pdf";
+        certificatePath = `projects/${projectId}/certificate-${Date.now()}.${extension}`;
+        certificateUrl = await uploadSiteFile(
+          PROJECT_MEDIA_BUCKET,
+          certificatePath,
+          projectCertificate
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("site_projects")
+        .insert({
+          id: projectId,
+          title: projectForm.title.trim(),
+          location: projectForm.location.trim() || null,
+          completion_date: projectForm.completion_date || null,
+          description: projectForm.description.trim() || null,
+          photo_url: photoUrl,
+          photo_path: photoPath,
+          certificate_url: certificateUrl,
+          certificate_path: certificatePath,
+          created_by: user?.id ?? null,
+        })
+        .select(
+          "id, title, location, completion_date, description, photo_url, photo_path, certificate_url, certificate_path"
+        )
+        .single();
+
+      if (error) throw error;
+
+      setCompletedProjects((items) => [data as CompletedProject, ...items]);
+      setProjectForm({
+        title: "",
+        location: "",
+        completion_date: "",
+        description: "",
+      });
+      setProjectPhoto(null);
+      setProjectCertificate(null);
+      setProjectMessage("Completed project added successfully.");
+    } catch (error) {
+      console.error("Project upload error:", error);
+      setProjectMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to add completed project."
+      );
+    } finally {
+      setProjectSubmitting(false);
+    }
+  }
+
+  async function handleProjectDelete(project: CompletedProject) {
+    if (!canManageSite) return;
+
+    const confirmed = window.confirm(
+      `Delete completed project \"${project.title}\"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from("site_projects")
+        .delete()
+        .eq("id", project.id);
+
+      if (error) throw error;
+
+      const paths = [project.photo_path, project.certificate_path].filter(
+        Boolean
+      ) as string[];
+
+      if (paths.length) {
+        await supabase.storage.from(PROJECT_MEDIA_BUCKET).remove(paths);
+      }
+
+      setCompletedProjects((items) =>
+        items.filter((item) => item.id !== project.id)
+      );
+    } catch (error) {
+      console.error("Project delete error:", error);
+      setProjectMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete completed project."
+      );
+    }
   }
 
   async function handleJobSubmit(event: FormEvent<HTMLFormElement>) {
@@ -423,15 +743,19 @@ const Landing = () => {
             >
               <div className="relative flex h-64 w-64 items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-[0_0_120px_rgba(249,115,22,0.18)] backdrop-blur-xl" style={{ backfaceVisibility: "hidden" }}>
                 <div className="text-center">
-                  <motion.img
-                    src={maaJankiLogo}
-                    alt="Maa Janki Industrial Services"
+                  <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.18, duration: 0.35 }}
-                    className="mx-auto h-24 w-40 object-contain"
-                  />
-                  <div className="mt-5 text-2xl font-black text-white">
+                    className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white p-3 shadow-xl shadow-orange-600/30"
+                  >
+                    <img
+                      src={maaJankiLogo}
+                      alt="MAA JANKI Industrial Services"
+                      className="h-full w-full object-contain"
+                    />
+                  </motion.div>
+                  <div className="mt-6 text-2xl font-black text-white">
                     Opening HRMS
                   </div>
                   <div className="mt-2 text-sm text-slate-400">
@@ -447,7 +771,7 @@ const Landing = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.3 }}
             >
-              Maa Janki Industrial Services
+              MAA JANKI INDUSTRIAL SERVICES
             </motion.div>
           </motion.div>
         )}
@@ -465,24 +789,20 @@ const Landing = () => {
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-          <a
-            href="#home"
-            className="flex min-w-0 items-center gap-3"
-            aria-label="Maa Janki Industrial Services home"
-          >
+          <a href="#home" className="flex min-w-0 items-center gap-3">
             <img
               src={maaJankiLogo}
-              alt="Maa Janki Industrial Services"
-              className="h-12 w-14 shrink-0 object-contain sm:h-14 sm:w-16"
+              alt="MAA JANKI Industrial Services logo"
+              className="h-11 w-11 shrink-0 object-contain sm:h-12 sm:w-12"
             />
 
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-base font-black tracking-tight sm:text-lg">
-                Maa Janki
+            <div className="min-w-0">
+              <div className="truncate text-base font-black leading-none sm:text-lg">
+                MAA JANKI
               </div>
 
-              <div className="truncate text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500 sm:text-[10px]">
-                Industrial Services
+              <div className="mt-1 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
+                INDUSTRIAL SERVICES
               </div>
             </div>
           </a>
@@ -632,22 +952,6 @@ const Landing = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="mb-7 inline-flex w-fit items-center gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-              <img
-                src={maaJankiLogo}
-                alt="Maa Janki Industrial Services logo"
-                className="h-16 w-20 object-contain"
-              />
-              <div className="text-left">
-                <div className="text-base font-black text-white sm:text-lg">
-                  Maa Janki
-                </div>
-                <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 sm:text-[10px]">
-                  Industrial Services
-                </div>
-              </div>
-            </div>
-
             <div className="mb-7 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-orange-300">
               <CheckCircle2 size={16} />
               Industrial Services & Manpower Solutions
@@ -661,7 +965,7 @@ const Landing = () => {
             </h1>
 
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
-              Maa Janki Industrial Services provides industrial painting,
+              MAA JANKI INDUSTRIAL SERVICES provides industrial painting,
               abrasive blasting, surface preparation, fabrication,
               scaffolding and manpower solutions for demanding project
               environments.
@@ -768,7 +1072,7 @@ const Landing = () => {
       >
         <div className="mx-auto max-w-3xl text-center">
           <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-600">
-            About Maa Janki
+            About MAA JANKI
           </div>
 
           <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-5xl">
@@ -868,12 +1172,12 @@ const Landing = () => {
             </div>
 
             <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-5xl">
-              Complete industrial service capabilities
+              Industrial services for demanding project environments
             </h2>
 
             <p className="mt-5 text-lg leading-8 text-slate-600">
-              Choose individual services or combine multiple capabilities
-              for complete project requirements.
+              Painting, abrasive / grit / sand blasting, surface preparation,
+              fabrication, scaffolding, metalizing and industrial manpower.
             </p>
           </div>
 
@@ -893,8 +1197,23 @@ const Landing = () => {
                   style={{ transformPerspective: 1000 }}
                   className="group rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition hover:border-orange-200 hover:shadow-xl"
                 >
-                  <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 transition group-hover:bg-orange-600 group-hover:text-white">
-                    <Icon size={27} />
+                  <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                    {serviceMedia.find((item) => item.service_key === service.key)?.image_url ? (
+                      <img
+                        src={serviceMedia.find((item) => item.service_key === service.key)?.image_url}
+                        alt={`${service.title} service`}
+                        className="h-44 w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-44 items-center justify-center bg-gradient-to-br from-orange-50 via-white to-slate-100 text-orange-600">
+                        <div className="text-center">
+                          <Icon size={38} className="mx-auto" />
+                          <div className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                            Add service photo
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <h3 className="text-xl font-black">
@@ -916,6 +1235,63 @@ const Landing = () => {
               );
             })}
           </div>
+
+          {canManageSite && (
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.4 }}
+              className="mx-auto mt-10 max-w-4xl rounded-3xl border border-orange-200 bg-orange-50 p-6 md:p-8"
+            >
+              <div className="flex items-start gap-3">
+                <FileImage className="mt-1 text-orange-600" size={22} />
+                <div>
+                  <h3 className="text-lg font-black">Service Photo Manager</h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Upload the real Painting, Blasting, Scaffolding, Fabrication or other service photo.
+                    The newest photo replaces the old one for that service.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleServicePhotoUpload} className="mt-5 grid gap-4 md:grid-cols-[1fr_1.2fr_auto]">
+                <select
+                  className={inputClass()}
+                  value={serviceUploadKey}
+                  onChange={(event) => setServiceUploadKey(event.target.value)}
+                >
+                  {SERVICES.map((service) => (
+                    <option key={service.key} value={service.key}>
+                      {service.title}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className={`${inputClass()} file:mr-4 file:rounded-lg file:border-0 file:bg-orange-100 file:px-3 file:py-2 file:font-bold file:text-orange-700`}
+                  onChange={(event) => setServiceUploadFile(event.target.files?.[0] ?? null)}
+                />
+
+                <button
+                  type="submit"
+                  disabled={serviceUploadSubmitting || !serviceUploadFile}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {serviceUploadSubmitting ? "Uploading..." : "Upload Photo"}
+                  <Upload size={17} />
+                </button>
+              </form>
+
+              {serviceUploadMessage && (
+                <div className="mt-4 rounded-xl bg-white p-4 text-sm font-semibold text-slate-700">
+                  {serviceUploadMessage}
+                </div>
+              )}
+            </motion.div>
+          )}
         </div>
       </section>
 
@@ -958,6 +1334,75 @@ const Landing = () => {
             </motion.div>
           ))}
         </div>
+
+        <div className="mt-20 overflow-hidden rounded-[2rem] bg-slate-950 p-7 md:p-10">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-400">
+              Trusted Companies & Project Exposure
+            </div>
+            <h3 className="text-2xl font-black text-white md:text-4xl">
+              Trusted by industrial clients & project environments
+            </h3>
+            <p className="mt-4 text-base leading-7 text-slate-400">
+              Real company logos uploaded by Admin / HR automatically scroll from right to left.
+              Hover to pause the marquee.
+            </p>
+          </div>
+
+          {trustedCompanies.length ? (
+            <>
+              <style>{`
+                @keyframes mjisTrustedMarquee {
+                  0% { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+                .mjis-trusted-marquee {
+                  animation: mjisTrustedMarquee 34s linear infinite;
+                }
+                .mjis-trusted-marquee:hover {
+                  animation-play-state: paused;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                  .mjis-trusted-marquee {
+                    animation: none;
+                    transform: translateX(0);
+                  }
+                }
+              `}</style>
+
+              <div className="relative mt-10 overflow-hidden">
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-slate-950 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-slate-950 to-transparent" />
+
+                <div className="mjis-trusted-marquee flex w-max items-stretch gap-5 py-2">
+                  {[...trustedCompanies, ...trustedCompanies].map((company, index) => (
+                    <div
+                      key={`${company.id}-${index}`}
+                      className="flex h-32 w-64 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white p-5 shadow-lg"
+                    >
+                      {company.logo_url ? (
+                        <img
+                          src={company.logo_url}
+                          alt={`${company.name} logo`}
+                          className="max-h-20 max-w-[210px] object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="text-center text-lg font-black text-slate-800">
+                          {company.name}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mt-10 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-slate-400">
+              Company logos will appear here after Admin / HR uploads them from Website Media.
+            </div>
+          )}
+        </div>
       </section>
 
       {/* =====================================================
@@ -971,50 +1416,212 @@ const Landing = () => {
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-400">
-              Projects
+              Completed Projects
             </div>
 
             <h2 className="text-3xl font-black tracking-tight text-white md:text-5xl">
-              Project capability that grows with your requirements
+              Real completed work, photos and certificates
             </h2>
 
             <p className="mt-5 text-lg leading-8 text-slate-300">
-              Highlight your completed industrial projects, shutdowns,
-              manpower assignments and execution packages here.
+              Once a project is completed, MAA JANKI can publish the project photo and completion certificate here.
             </p>
           </div>
 
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
-            {[
-              "Industrial Painting Package",
-              "Surface Preparation & Blasting",
-              "Industrial Manpower Deployment",
-            ].map((project, index) => (
-              <motion.div
-                key={project}
-                initial={{ opacity: 0, y: 24, rotateY: 8 }}
-                whileInView={{ opacity: 1, y: 0, rotateY: 0 }}
-                viewport={{ once: true, amount: 0.18 }}
-                whileHover={{ y: -10, rotateX: 4, rotateY: -5 }}
-                transition={{ duration: 0.5 }}
-                style={{ transformPerspective: 1100 }}
-                className="min-h-[260px] rounded-3xl border border-white/10 bg-gradient-to-br from-orange-600/30 via-slate-900 to-slate-950 p-7"
-              >
-                <div className="text-sm font-bold uppercase tracking-widest text-orange-400">
-                  Project 0{index + 1}
+          <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {completedProjects.length ? (
+              completedProjects.map((project) => (
+                <motion.article
+                  key={project.id}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.18 }}
+                  whileHover={{ y: -8, rotateX: 3, rotateY: -3 }}
+                  transition={{ duration: 0.45 }}
+                  style={{ transformPerspective: 1100 }}
+                  className="overflow-hidden rounded-3xl border border-white/10 bg-white/5"
+                >
+                  <div className="aspect-[16/10] overflow-hidden bg-slate-900">
+                    {project.photo_url ? (
+                      <img
+                        src={project.photo_url}
+                        alt={project.title}
+                        className="h-full w-full object-cover transition duration-500 hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-500">
+                        <FileImage size={44} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-7">
+                    <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.15em] text-orange-400">
+                      <span>Completed Project</span>
+                      {project.completion_date && (
+                        <span>{project.completion_date}</span>
+                      )}
+                    </div>
+
+                    <h3 className="mt-4 text-2xl font-black text-white">
+                      {project.title}
+                    </h3>
+
+                    {project.location && (
+                      <p className="mt-2 text-sm font-semibold text-slate-400">
+                        {project.location}
+                      </p>
+                    )}
+
+                    {project.description && (
+                      <p className="mt-4 leading-7 text-slate-300">
+                        {project.description}
+                      </p>
+                    )}
+
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      {project.certificate_url && (
+                        <a
+                          href={project.certificate_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white"
+                        >
+                          <FileCheck2 size={16} />
+                          View Certificate
+                          <ExternalLink size={15} />
+                        </a>
+                      )}
+
+                      {project.photo_url && (
+                        <a
+                          href={project.photo_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white"
+                        >
+                          <FileImage size={16} />
+                          Open Photo
+                          <ExternalLink size={15} />
+                        </a>
+                      )}
+
+                      {canManageSite && (
+                        <button
+                          type="button"
+                          onClick={() => void handleProjectDelete(project)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-2.5 text-sm font-bold text-red-300"
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.article>
+              ))
+            ) : (
+              <div className="md:col-span-2 lg:col-span-3">
+                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
+                  <FileImage className="mx-auto text-orange-400" size={42} />
+                  <h3 className="mt-5 text-xl font-black text-white">
+                    Completed project gallery is ready
+                  </h3>
+                  <p className="mx-auto mt-3 max-w-2xl leading-7 text-slate-400">
+                    Add the first finished project with its project photo and certificate using the manager below.
+                  </p>
                 </div>
-
-                <h3 className="mt-4 text-2xl font-black text-white">
-                  {project}
-                </h3>
-
-                <p className="mt-4 leading-7 text-slate-300">
-                  Project information can be managed later from your
-                  website content system.
-                </p>
-              </motion.div>
-            ))}
+              </div>
+            )}
           </div>
+
+          {canManageSite && (
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.45 }}
+              className="mx-auto mt-12 max-w-5xl rounded-3xl border border-orange-400/20 bg-white p-6 shadow-2xl md:p-8"
+            >
+              <div className="flex items-start gap-3">
+                <FileCheck2 className="mt-1 text-orange-600" size={22} />
+                <div>
+                  <h3 className="text-xl font-black">Add Completed Project</h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Upload the completed-work photo and certificate. This section does not use a service label.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleProjectSubmit} className="mt-6 grid gap-5 md:grid-cols-2">
+                <input
+                  className={inputClass()}
+                  placeholder="Project / Work Title *"
+                  required
+                  value={projectForm.title}
+                  onChange={(event) =>
+                    setProjectForm({ ...projectForm, title: event.target.value })
+                  }
+                />
+
+                <input
+                  className={inputClass()}
+                  placeholder="Project Location"
+                  value={projectForm.location}
+                  onChange={(event) =>
+                    setProjectForm({ ...projectForm, location: event.target.value })
+                  }
+                />
+
+                <input
+                  className={inputClass()}
+                  type="date"
+                  value={projectForm.completion_date}
+                  onChange={(event) =>
+                    setProjectForm({ ...projectForm, completion_date: event.target.value })
+                  }
+                />
+
+                <input
+                  className={`${inputClass()} file:mr-4 file:rounded-lg file:border-0 file:bg-orange-100 file:px-3 file:py-2 file:font-bold file:text-orange-700`}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => setProjectPhoto(event.target.files?.[0] ?? null)}
+                />
+
+                <input
+                  className={`${inputClass()} md:col-span-2 file:mr-4 file:rounded-lg file:border-0 file:bg-orange-100 file:px-3 file:py-2 file:font-bold file:text-orange-700`}
+                  type="file"
+                  accept="application/pdf,image/png,image/jpeg,image/webp"
+                  onChange={(event) => setProjectCertificate(event.target.files?.[0] ?? null)}
+                />
+
+                <textarea
+                  className={`${inputClass()} min-h-28 md:col-span-2`}
+                  placeholder="Completion details / scope summary"
+                  value={projectForm.description}
+                  onChange={(event) =>
+                    setProjectForm({ ...projectForm, description: event.target.value })
+                  }
+                />
+
+                <button
+                  type="submit"
+                  disabled={projectSubmitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-6 py-3.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 md:col-span-2"
+                >
+                  {projectSubmitting ? "Uploading Project..." : "Add Completed Project"}
+                  <Upload size={18} />
+                </button>
+              </form>
+
+              {projectMessage && (
+                <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+                  {projectMessage}
+                </div>
+              )}
+            </motion.div>
+          )}
         </div>
       </section>
 
@@ -1032,7 +1639,7 @@ const Landing = () => {
           </div>
 
           <h2 className="text-3xl font-black tracking-tight md:text-5xl">
-            Join the Maa Janki workforce
+            Join the MAA JANKI workforce
           </h2>
 
           <p className="mt-5 text-lg leading-8 text-slate-600">
@@ -1572,7 +2179,7 @@ const Landing = () => {
             transition={{ duration: 0.5 }}
           >
             <h3 className="text-2xl font-black">
-              Maa Janki Industrial Services
+              MAA JANKI Industrial Services
             </h3>
 
             <div className="mt-8 space-y-7">
@@ -1618,11 +2225,28 @@ const Landing = () => {
 
                 <div>
                   <div className="text-sm text-slate-400">
-                    Address
+                    Office Address
                   </div>
 
                   <div className="mt-1 font-bold">
-                    Maa Janki Industrial Services, Near Hinoo More, Ranchi, Jharkhand , 834002
+                    MAA JANKI Industrial Services, Near Hinoo More, Ranchi, Jharkhand - 834002
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <MapPin
+                  className="mt-1 text-orange-500"
+                  size={21}
+                />
+
+                <div>
+                  <div className="text-sm text-slate-400">
+                    2nd Address
+                  </div>
+
+                  <div className="mt-1 font-bold">
+                    Koahi Chowk, Muzaffarpur, Bihar - 843117
                   </div>
                 </div>
               </div>
@@ -1731,20 +2355,8 @@ const Landing = () => {
         <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
           <div className="grid gap-10 md:grid-cols-3">
             <div>
-              <div className="flex items-center gap-3">
-                <img
-                  src={maaJankiLogo}
-                  alt="Maa Janki Industrial Services"
-                  className="h-14 w-16 object-contain"
-                />
-                <div>
-                  <div className="text-xl font-black">
-                    Maa Janki Industrial Services
-                  </div>
-                  <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Reliability • Precision • Service
-                  </div>
-                </div>
+              <div className="text-xl font-black">
+                MAA JANKI INDUSTRIAL SERVICES
               </div>
 
               <p className="mt-4 max-w-md leading-7 text-slate-400">
@@ -1788,7 +2400,7 @@ const Landing = () => {
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-sm text-slate-500">
-            © {new Date().getFullYear()} Maa Janki Industrial Services.
+            © {new Date().getFullYear()} MAA JANKI INDUSTRIAL SERVICES.
             All rights reserved.
           </div>
         </div>
