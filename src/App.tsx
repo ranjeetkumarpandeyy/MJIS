@@ -77,6 +77,15 @@ const EmployeeSalarySlips = lazy(
 );
 
 // ============================================================
+// MJIS WEBSITE MEDIA MANAGEMENT
+// Admin / HR can manage service photos, completed project media,
+// completion certificates, and trusted company/client logos.
+// ============================================================
+const WebsiteMedia = lazy(
+  () => import("./pages/WebsiteMedia")
+);
+
+// ============================================================
 // REACT QUERY
 // ============================================================
 
@@ -329,20 +338,6 @@ const App = () => (
   }
 />
 
-                {/* ==================================================
-                    SMS CENTER
-                    Access control is enforced inside SmsCenter.
-                =================================================== */}
-
-                <Route
-                  path="/sms-center"
-                  element={
-                    <ProtectedRoute>
-                      <SmsCenter />
-                    </ProtectedRoute>
-                  }
-                />
-
                 <Route
                   path="/departments"
                   element={
@@ -406,6 +401,20 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <ContactMessages />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ==================================================
+                    MJIS WEBSITE MEDIA MANAGEMENT
+                    Existing ProtectedRoute is preserved.
+                    WebsiteMedia itself is restricted to Admin / HR.
+                =================================================== */}
+                <Route
+                  path="/website-media"
+                  element={
+                    <ProtectedRoute>
+                      <WebsiteMedia />
                     </ProtectedRoute>
                   }
                 />
