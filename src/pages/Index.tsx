@@ -75,7 +75,7 @@ const Index = () => {
   ) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
+        <div className="space-y-6 mjis-dashboard-loading">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton
@@ -100,12 +100,14 @@ const Index = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="mjis-3d-dashboard space-y-6">
         {/* Update Notification for Admins */}
-        <UpdateNotification />
+        <div className="mjis-3d-section">
+          <UpdateNotification />
+        </div>
 
         {/* Greeting + Quick Actions */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 mjis-3d-section">
           <h1 className="text-2xl font-semibold text-foreground">
             {getGreeting()}, {getUserFirstName()}
           </h1>
@@ -115,7 +117,7 @@ const Index = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-2 mjis-3d-action"
               >
                 <Zap className="h-4 w-4" />
                 Quick Actions
@@ -270,7 +272,7 @@ const Index = () => {
 
               {hasPendingApprovals && (
                 <div
-                  className="cursor-pointer"
+                  className="cursor-pointer mjis-3d-action"
                   onClick={() =>
                     navigate("/leave-approvals")
                   }
@@ -292,17 +294,19 @@ const Index = () => {
         </div>
 
         {/* Who's Out */}
-        <WhosOut />
+        <div className="mjis-3d-section">
+          <WhosOut />
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Activity Feed */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 mjis-3d-section">
             <RecentActivity />
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-6 mjis-3d-section">
             <UpcomingHolidays />
             <UpcomingCelebrations />
             <PendingApprovalsWidget />

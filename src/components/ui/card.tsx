@@ -3,7 +3,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      "mjis-3d-card",
+      className
+    )}
+    {...props}
+  />
 ));
 Card.displayName = "Card";
 
@@ -39,5 +47,8 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
   ),
 );
 CardFooter.displayName = "CardFooter";
+
+// MJIS dashboard-scoped 3D styling is enabled by .mjis-3d-card
+// only inside .mjis-3d-dashboard, so other pages are unchanged.
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
