@@ -409,18 +409,18 @@ const App = () => (
                 />
 
                 {/* ==================================================
-                    MJIS WEBSITE MEDIA MANAGEMENT
+                    WebsiteMedia itself is restricted to Admin / HR. Duplicate route below is intentionally disabled.
                     Existing ProtectedRoute is preserved.
                     WebsiteMedia itself is restricted to Admin / HR.
                 =================================================== */}
-                <Route
+                {false && <Route
                   path="/website-media"
                   element={
                     <ProtectedRoute>
                       <WebsiteMedia />
                     </ProtectedRoute>
                   }
-                />
+                />}
 
                 {/* ==================================================
                     FALLBACK
