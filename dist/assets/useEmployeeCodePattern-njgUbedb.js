@@ -1,6 +1,0 @@
-import{c as r,f as o,m as a,s}from"./index-jl0uuylT.js";import{u as i}from"./DashboardLayout-CAb8zaWp.js";/**
- * @license lucide-react v0.462.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const p=r("Hash",[["line",{x1:"4",x2:"20",y1:"9",y2:"9",key:"4lhtct"}],["line",{x1:"4",x2:"20",y1:"15",y2:"15",key:"vyu0kd"}],["line",{x1:"10",x2:"8",y1:"3",y2:"21",key:"1ggp8o"}],["line",{x1:"16",x2:"14",y1:"3",y2:"21",key:"weycgp"}]]),y={prefix:"ACQ",min_digits:3,separator:""};function l(){return o({queryKey:["employee-code-pattern"],queryFn:async()=>{const{data:t,error:e}=await s.from("system_settings").select("setting_value").eq("setting_key","employee_code_pattern").maybeSingle();if(e)throw e;return t?t.setting_value:y}})}function m(){const t=a();return i({mutationFn:async e=>{const{error:n}=await s.from("system_settings").upsert({setting_key:"employee_code_pattern",setting_value:e},{onConflict:"setting_key"});if(n)throw n},onSuccess:()=>{t.invalidateQueries({queryKey:["employee-code-pattern"]}),t.invalidateQueries({queryKey:["next-employee-code"]})}})}const d=(t,e)=>{const n=String(t).padStart(e.min_digits,"0");return`${e.prefix}${e.separator}${n}`};export{p as H,m as a,d as f,l as u};

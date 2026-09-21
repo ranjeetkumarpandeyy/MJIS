@@ -22,14 +22,28 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Download, Eye, MoreVertical, CheckCircle, Clock, CreditCard, CalendarCheck, Loader2, X } from "lucide-react";
+import {
+  Download,
+  Eye,
+  MoreVertical,
+  CheckCircle,
+  Clock,
+  CreditCard,
+  CalendarCheck,
+  Loader2,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { downloadPayslip } from "@/lib/payslipPdfGenerator";
 import { fetchImageAsDataUrl } from "@/lib/pdfTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompanyBranding } from "@/hooks/useCompanyBranding";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
 
 export interface PayrollRecord {
   id: string;
@@ -64,6 +78,8 @@ interface PayrollTableProps {
   isBulkUpdating?: boolean;
 }
 
+const payrollDataClient = supabase as any;
+
 const statusStyles = {
   paid: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
@@ -76,9 +92,51 @@ const statusIcons = {
   processing: <CreditCard className="mr-1 h-3 w-3" />,
 };
 
-export function PayrollTable({ 
-  records, 
-  onView, 
+const getLopDaysForRecord = async (
+  employeeId: string,
+  year: number,
+  monthNum: number
+) => {
+  const periodStart = startOfMonth(
+    new Date(year, monthNum - 1)
+  );
+  const periodEnd = endOfMonth(periodStart);
+
+  const { data, error } = await supabase
+    .from("leave_requests")
+    .select(
+      "days_count, leave_type:leave_types!leave_requests_leave_type_id_fkey(is_paid)"
+    )
+    .eq("employee_id", employeeId)
+    .eq("status", "approved")
+    .gte(
+      "start_date",
+      format(periodStart, "yyyy-MM-dd")
+    )
+    .lte(
+      "end_date",
+      format(periodEnd, "yyyy-MM-dd")
+    );
+
+  if (error) {
+    console.warn("LOP calculation failed:", error);
+    return 0;
+  }
+
+  return (data ?? []).reduce((sum, item) => {
+    const leaveType = item.leave_type as
+      | { is_paid?: boolean | null }
+      | null;
+
+    return leaveType?.is_paid === false
+      ? sum + Number(item.days_count ?? 0)
+      : sum;
+  }, 0);
+};
+
+export function PayrollTable({
+  records,
+  onView,
   onDownload,
   onMarkProcessed,
   onMarkPaid,
@@ -88,28 +146,37 @@ export function PayrollTable({
   onBulkRevertToPending,
   isBulkUpdating = false,
 }: PayrollTableProps) {
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [downloadingId, setDownloadingId] =
+    useState<string | null>(null);
+  const [selectedIds, setSelectedIds] =
+    useState<Set<string>>(new Set());
   const { toast } = useToast();
-  const { data: branding } = useCompanyBranding();
+  const { data: branding } =
+    useCompanyBranding();
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
+
       if (next.has(id)) {
         next.delete(id);
       } else {
         next.add(id);
       }
+
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === records.length) {
+    if (
+      selectedIds.size === records.length
+    ) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(records.map((r) => r.id)));
+      setSelectedIds(
+        new Set(records.map((r) => r.id))
+      );
     }
   };
 
@@ -117,13 +184,34 @@ export function PayrollTable({
     setSelectedIds(new Set());
   };
 
-  const selectedRecords = records.filter((r) => selectedIds.has(r.id));
-  const canMarkProcessed = selectedRecords.some((r) => r.status === "pending");
-  const canMarkPaid = selectedRecords.some((r) => r.status === "pending" || r.status === "processing");
-  const canRevert = selectedRecords.some((r) => r.status === "processing" || r.status === "paid");
+  const selectedRecords = records.filter((r) =>
+    selectedIds.has(r.id)
+  );
+
+  const canMarkProcessed =
+    selectedRecords.some(
+      (r) => r.status === "pending"
+    );
+
+  const canMarkPaid =
+    selectedRecords.some(
+      (r) =>
+        r.status === "pending" ||
+        r.status === "processing"
+    );
+
+  const canRevert =
+    selectedRecords.some(
+      (r) =>
+        r.status === "processing" ||
+        r.status === "paid"
+    );
 
   const handleBulkProcessed = () => {
-    const eligibleIds = selectedRecords.filter((r) => r.status === "pending").map((r) => r.id);
+    const eligibleIds = selectedRecords
+      .filter((r) => r.status === "pending")
+      .map((r) => r.id);
+
     if (eligibleIds.length > 0) {
       onBulkMarkProcessed?.(eligibleIds);
       clearSelection();
@@ -131,7 +219,14 @@ export function PayrollTable({
   };
 
   const handleBulkPaid = () => {
-    const eligibleIds = selectedRecords.filter((r) => r.status === "pending" || r.status === "processing").map((r) => r.id);
+    const eligibleIds = selectedRecords
+      .filter(
+        (r) =>
+          r.status === "pending" ||
+          r.status === "processing"
+      )
+      .map((r) => r.id);
+
     if (eligibleIds.length > 0) {
       onBulkMarkPaid?.(eligibleIds);
       clearSelection();
@@ -139,101 +234,245 @@ export function PayrollTable({
   };
 
   const handleBulkRevert = () => {
-    const eligibleIds = selectedRecords.filter((r) => r.status === "processing" || r.status === "paid").map((r) => r.id);
+    const eligibleIds = selectedRecords
+      .filter(
+        (r) =>
+          r.status === "processing" ||
+          r.status === "paid"
+      )
+      .map((r) => r.id);
+
     if (eligibleIds.length > 0) {
       onBulkRevertToPending?.(eligibleIds);
       clearSelection();
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-IN", {
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
       minimumFractionDigits: 2,
     }).format(amount);
-  };
 
   const MONTH_NAMES = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
 
-  const downloadPayslipPDF = async (record: PayrollRecord) => {
+  const downloadPayslipPDF = async (
+    record: PayrollRecord
+  ) => {
     setDownloadingId(record.id);
-    
+
     try {
-      // Fetch salary structure for detailed breakdown
-      const { data: salaryStructure } = await supabase
-        .from("salary_structures")
-        .select("*")
-        .eq("employee_id", record.employeeId)
-        .order("effective_from", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: salaryStructure } =
+        await supabase
+          .from("salary_structures")
+          .select("*")
+          .eq("employee_id", record.employeeId)
+          .order("effective_from", {
+            ascending: false,
+          })
+          .limit(1)
+          .maybeSingle();
 
-      const { data: employeeInfo } = await supabase
-        .from("employees")
-        .select("hire_date, designation, department:departments!employees_department_id_fkey(name)")
-        .eq("id", record.employeeId)
-        .maybeSingle();
+      const { data: employeeInfo } =
+        await supabase
+          .from("employees")
+          .select(
+            "hire_date, designation, email, department:departments!employees_department_id_fkey(name)"
+          )
+          .eq("id", record.employeeId)
+          .maybeSingle();
 
-      const periodStart = startOfMonth(new Date(record.year, record.monthNum - 1));
-      const periodEnd = endOfMonth(periodStart);
-      const { count: workedDays } = await supabase
-        .from("attendance_records")
-        .select("id", { count: "exact", head: true })
-        .eq("employee_id", record.employeeId)
-        .eq("status", "present")
-        .gte("date", format(periodStart, "yyyy-MM-dd"))
-        .lte("date", format(periodEnd, "yyyy-MM-dd"));
+      const { data: payrollIdentity } =
+        await supabase
+          .from("employee_payroll_profiles")
+          .select(
+            "bank_name, bank_account_number, ifsc_code, pan_number, uan_number, esi_number, insurance_number, aadhaar_number"
+          )
+          .eq("employee_id", record.employeeId)
+          .maybeSingle();
 
-      const monthName = MONTH_NAMES[record.monthNum - 1] || "";
-      const logoDataUrl = await fetchImageAsDataUrl(branding?.logoUrl);
+      const periodStart = startOfMonth(
+        new Date(
+          record.year,
+          record.monthNum - 1
+        )
+      );
+      const periodEnd = endOfMonth(
+        periodStart
+      );
 
-      downloadPayslip({
-        employeeName: record.employee.name,
-        employeeCode: record.employeeCode,
-        employeeEmail: record.employee.email,
-        monthName,
-        year: record.year,
-        status: record.status,
-        paidAt: record.paidAt,
-        basicSalary: record.basic,
-        allowances: record.allowances,
-        deductions: record.deductions,
-        netSalary: record.netSalary,
-        companyName: branding?.companyName || undefined,
-        companyAddress: branding?.companyAddress || undefined,
-        logoDataUrl,
-        dateOfJoining: employeeInfo?.hire_date ? format(new Date(employeeInfo.hire_date), "yyyy-MM-dd") : undefined,
-        designation: employeeInfo?.designation ?? undefined,
-        department: employeeInfo?.department?.name ?? undefined,
-        workedDays: workedDays ?? undefined,
-        salaryBreakdown: salaryStructure ? {
-          hra: salaryStructure.hra ?? undefined,
-          transport_allowance: salaryStructure.transport_allowance ?? undefined,
-          medical_allowance: salaryStructure.medical_allowance ?? undefined,
-          other_allowances: salaryStructure.other_allowances ?? undefined,
-          tax_deduction: salaryStructure.tax_deduction ?? undefined,
-          pf_deduction: salaryStructure.pf_deduction ?? undefined,
-        } : undefined,
-      }, `Payslip_${record.employeeCode}_${monthName}_${record.year}.pdf`);
-      
+      const { count: workedDays } =
+        await supabase
+          .from("attendance_records")
+          .select("id", {
+            count: "exact",
+            head: true,
+          })
+          .eq(
+            "employee_id",
+            record.employeeId
+          )
+          .eq("status", "present")
+          .gte(
+            "date",
+            format(
+              periodStart,
+              "yyyy-MM-dd"
+            )
+          )
+          .lte(
+            "date",
+            format(
+              periodEnd,
+              "yyyy-MM-dd"
+            )
+          );
+
+      const lopDays =
+        await getLopDaysForRecord(
+          record.employeeId,
+          record.year,
+          record.monthNum
+        );
+
+      const monthName =
+        MONTH_NAMES[
+          record.monthNum - 1
+        ] || "";
+
+      const logoDataUrl =
+        await fetchImageAsDataUrl(
+          branding?.logoUrl
+        );
+
+      downloadPayslip(
+        {
+          employeeName:
+            record.employee.name,
+          employeeCode:
+            record.employeeCode,
+          employeeEmail:
+            record.employee.email,
+          monthName,
+          year: record.year,
+          status: record.status,
+          paidAt: record.paidAt,
+          basicSalary: record.basic,
+          allowances: record.allowances,
+          deductions: record.deductions,
+          netSalary: record.netSalary,
+          companyName:
+            branding?.companyName ||
+            undefined,
+          companyAddress:
+            branding?.companyAddress ||
+            undefined,
+          logoDataUrl,
+          dateOfJoining:
+            employeeInfo?.hire_date
+              ? format(
+                  new Date(
+                    employeeInfo.hire_date
+                  ),
+                  "yyyy-MM-dd"
+                )
+              : undefined,
+          designation:
+            employeeInfo?.designation ??
+            undefined,
+          department:
+            employeeInfo?.department?.name ??
+            undefined,
+          workedDays:
+            workedDays ?? undefined,
+          lopDays,
+          bankName:
+            payrollIdentity?.bank_name ??
+            undefined,
+          bankAccountNumber:
+            payrollIdentity?.bank_account_number ??
+            undefined,
+          ifscCode:
+            payrollIdentity?.ifsc_code ??
+            undefined,
+          panNumber:
+            payrollIdentity?.pan_number ??
+            undefined,
+          uanNumber:
+            payrollIdentity?.uan_number ??
+            undefined,
+          esiNumber:
+            payrollIdentity?.esi_number ??
+            undefined,
+          insuranceNumber:
+            payrollIdentity?.insurance_number ??
+            undefined,
+          aadhaarNumber:
+            payrollIdentity?.aadhaar_number ??
+            undefined,
+          salaryBreakdown:
+            salaryStructure
+              ? {
+                  hra:
+                    salaryStructure.hra ??
+                    undefined,
+                  transport_allowance:
+                    salaryStructure.transport_allowance ??
+                    undefined,
+                  medical_allowance:
+                    salaryStructure.medical_allowance ??
+                    undefined,
+                  other_allowances:
+                    salaryStructure.other_allowances ??
+                    undefined,
+                  tax_deduction:
+                    salaryStructure.tax_deduction ??
+                    undefined,
+                  pf_deduction:
+                    salaryStructure.pf_deduction ??
+                    undefined,
+                }
+              : undefined,
+        },
+        `Payslip_${record.employeeCode}_${monthName}_${record.year}.pdf`
+      );
+
       toast({
         title: "Payslip Downloaded",
-        description: `PDF generated for ${record.employee.name}`,
+        description:
+          `PDF generated for ${record.employee.name}`,
       });
     } catch (error) {
+      console.error(
+        "Payslip download error:",
+        error
+      );
+
       toast({
         title: "Download Failed",
-        description: "Could not generate payslip PDF",
+        description:
+          "Could not generate payslip PDF",
         variant: "destructive",
       });
     } finally {
       setDownloadingId(null);
     }
   };
+
   return (
     <div className="space-y-3">
       {/* Bulk Actions Bar */}
@@ -241,44 +480,76 @@ export function PayrollTable({
         <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium">
-              {selectedIds.size} record{selectedIds.size > 1 ? "s" : ""} selected
+              {selectedIds.size} record
+              {selectedIds.size > 1
+                ? "s"
+                : ""}{" "}
+              selected
             </span>
-            <Button variant="ghost" size="sm" onClick={clearSelection}>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSelection}
+            >
               <X className="mr-1 h-4 w-4" />
               Clear
             </Button>
           </div>
+
           <div className="flex items-center gap-2">
             {canMarkProcessed && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleBulkProcessed}
-                disabled={isBulkUpdating}
+                onClick={
+                  handleBulkProcessed
+                }
+                disabled={
+                  isBulkUpdating
+                }
               >
-                {isBulkUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                {isBulkUpdating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="mr-2 h-4 w-4" />
+                )}
                 Mark as Processed
               </Button>
             )}
+
             {canMarkPaid && (
               <Button
                 size="sm"
                 onClick={handleBulkPaid}
-                disabled={isBulkUpdating}
+                disabled={
+                  isBulkUpdating
+                }
               >
-                {isBulkUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                {isBulkUpdating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                )}
                 Mark as Paid
               </Button>
             )}
+
             {canRevert && (
               <Button
                 size="sm"
                 variant="outline"
                 className="text-amber-600 border-amber-600/30 hover:bg-amber-500/10"
                 onClick={handleBulkRevert}
-                disabled={isBulkUpdating}
+                disabled={
+                  isBulkUpdating
+                }
               >
-                {isBulkUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />}
+                {isBulkUpdating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Clock className="mr-2 h-4 w-4" />
+                )}
                 Revert to Pending
               </Button>
             )}
@@ -292,64 +563,141 @@ export function PayrollTable({
             <TableRow>
               <TableHead className="w-[40px]">
                 <Checkbox
-                  checked={selectedIds.size === records.length && records.length > 0}
-                  onCheckedChange={toggleSelectAll}
+                  checked={
+                    selectedIds.size ===
+                      records.length &&
+                    records.length > 0
+                  }
+                  onCheckedChange={
+                    toggleSelectAll
+                  }
                   aria-label="Select all"
                 />
               </TableHead>
-              <TableHead className="w-[220px]">Employee</TableHead>
+
+              <TableHead className="w-[220px]">
+                Employee
+              </TableHead>
               <TableHead>Month</TableHead>
-              <TableHead className="text-right">Basic</TableHead>
-              <TableHead className="text-right">Allowances</TableHead>
-              <TableHead className="text-right">Deductions</TableHead>
-              <TableHead className="text-right">Net Salary</TableHead>
+              <TableHead className="text-right">
+                Basic
+              </TableHead>
+              <TableHead className="text-right">
+                Allowances
+              </TableHead>
+              <TableHead className="text-right">
+                Deductions
+              </TableHead>
+              <TableHead className="text-right">
+                Net Salary
+              </TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-right">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {records.map((record) => (
-              <TableRow key={record.id} data-state={selectedIds.has(record.id) ? "selected" : undefined}>
+              <TableRow
+                key={record.id}
+                data-state={
+                  selectedIds.has(record.id)
+                    ? "selected"
+                    : undefined
+                }
+              >
                 <TableCell>
                   <Checkbox
-                    checked={selectedIds.has(record.id)}
-                    onCheckedChange={() => toggleSelection(record.id)}
+                    checked={selectedIds.has(
+                      record.id
+                    )}
+                    onCheckedChange={() =>
+                      toggleSelection(
+                        record.id
+                      )
+                    }
                     aria-label={`Select ${record.employee.name}`}
                   />
                 </TableCell>
+
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={record.employee.avatar} />
+                      <AvatarImage
+                        src={
+                          record.employee
+                            .avatar
+                        }
+                      />
                       <AvatarFallback>
-                        {record.employee.name.split(" ").map((n) => n[0]).join("")}
+                        {record.employee.name
+                          .split(" ")
+                          .map(
+                            (n) => n[0]
+                          )
+                          .join("")}
                       </AvatarFallback>
                     </Avatar>
+
                     <div>
-                      <p className="font-medium text-foreground">{record.employee.name}</p>
-                      <p className="text-xs text-muted-foreground">{record.employee.email}</p>
+                      <p className="font-medium text-foreground">
+                        {record.employee.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {record.employee.email}
+                      </p>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{record.month}</TableCell>
+
+                <TableCell className="text-muted-foreground">
+                  {record.month}
+                </TableCell>
+
                 <TableCell className="text-right text-muted-foreground">
-                  ₹{record.basic.toLocaleString('en-IN')}
+                  ₹
+                  {record.basic.toLocaleString(
+                    "en-IN"
+                  )}
                 </TableCell>
+
                 <TableCell className="text-right text-emerald-600">
-                  +₹{record.allowances.toLocaleString('en-IN')}
+                  +₹
+                  {record.allowances.toLocaleString(
+                    "en-IN"
+                  )}
                 </TableCell>
+
                 <TableCell className="text-right text-destructive">
-                  -₹{record.deductions.toLocaleString('en-IN')}
+                  -₹
+                  {record.deductions.toLocaleString(
+                    "en-IN"
+                  )}
                 </TableCell>
+
                 <TableCell className="text-right font-semibold text-foreground">
-                  ₹{record.netSalary.toLocaleString('en-IN')}
+                  ₹
+                  {record.netSalary.toLocaleString(
+                    "en-IN"
+                  )}
                 </TableCell>
+
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <Badge variant="outline" className={`${statusStyles[record.status]} inline-flex items-center`}>
-                      {statusIcons[record.status]}
+                    <Badge
+                      variant="outline"
+                      className={`${statusStyles[record.status]} inline-flex items-center`}
+                    >
+                      {
+                        statusIcons[
+                          record.status
+                        ]
+                      }
                       {record.status}
                     </Badge>
+
                     {record.paidAt && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -358,58 +706,112 @@ export function PayrollTable({
                             {record.paidAt}
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent>Paid on {record.paidAt}</TooltipContent>
+
+                        <TooltipContent>
+                          Paid on{" "}
+                          {record.paidAt}
+                        </TooltipContent>
                       </Tooltip>
                     )}
                   </div>
                 </TableCell>
+
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => onView?.(record)}
+                      onClick={() =>
+                        onView?.(record)
+                      }
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
+
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => downloadPayslipPDF(record)}
-                      disabled={downloadingId === record.id}
+                      onClick={() =>
+                        void downloadPayslipPDF(
+                          record
+                        )
+                      }
+                      disabled={
+                        downloadingId ===
+                        record.id
+                      }
                     >
-                      {downloadingId === record.id ? (
+                      {downloadingId ===
+                      record.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Download className="h-4 w-4" />
                       )}
                     </Button>
+
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <DropdownMenuTrigger
+                        asChild
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
+
                       <DropdownMenuContent align="end">
-                        {record.status === "pending" && (
-                          <DropdownMenuItem onClick={() => onMarkProcessed?.(record)}>
+                        {record.status ===
+                          "pending" && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onMarkProcessed?.(
+                                record
+                              )
+                            }
+                          >
                             <CreditCard className="mr-2 h-4 w-4" />
                             Mark as Processed
                           </DropdownMenuItem>
                         )}
-                        {(record.status === "pending" || record.status === "processing") && (
-                          <DropdownMenuItem onClick={() => onMarkPaid?.(record)}>
+
+                        {(
+                          record.status ===
+                            "pending" ||
+                          record.status ===
+                            "processing"
+                        ) && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onMarkPaid?.(
+                                record
+                              )
+                            }
+                          >
                             <CheckCircle className="mr-2 h-4 w-4" />
                             Mark as Paid
                           </DropdownMenuItem>
                         )}
-                        {(record.status === "processing" || record.status === "paid") && (
+
+                        {(
+                          record.status ===
+                            "processing" ||
+                          record.status ===
+                            "paid"
+                        ) && (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => onRevertToPending?.(record)}
+
+                            <DropdownMenuItem
+                              onClick={() =>
+                                onRevertToPending?.(
+                                  record
+                                )
+                              }
                               className="text-amber-600"
                             >
                               <Clock className="mr-2 h-4 w-4" />

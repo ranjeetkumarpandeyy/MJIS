@@ -112,6 +112,7 @@ type ServiceMedia = {
 type TrustedCompany = {
   id: string;
   name: string;
+  domain: string | null;
   logo_url: string | null;
   logo_path: string | null;
   display_order: number;
@@ -1335,74 +1336,155 @@ const Landing = () => {
           ))}
         </div>
 
-        <div className="mt-20 overflow-hidden rounded-[2rem] bg-slate-950 p-7 md:p-10">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-400">
-              Trusted Companies & Project Exposure
+        <div className="mt-20 overflow-hidden rounded-[2rem] bg-[#080b16] p-6 shadow-2xl ring-1 ring-slate-900/10 md:p-10">
+          <div className="mx-auto max-w-4xl text-center">
+            <div className="mb-4 text-sm font-black uppercase tracking-[0.28em] text-orange-400">
+              Our Clients & Industry Exposure
             </div>
-            <h3 className="text-2xl font-black text-white md:text-4xl">
-              Trusted by industrial clients & project environments
+
+            <h3 className="text-3xl font-black uppercase tracking-tight text-white md:text-5xl">
+              Trusted by Industry Leaders
             </h3>
-            <p className="mt-4 text-base leading-7 text-slate-400">
-              Real company logos uploaded by Admin / HR automatically scroll from right to left.
-              Hover to pause the marquee.
+
+            <p className="mt-4 text-base leading-7 text-slate-400 md:text-lg">
+              A premium, continuously moving logo showcase inspired by leading
+              industrial service websites. Company marks are loaded
+              automatically from the company domain; no image upload is
+              required for this section.
             </p>
           </div>
 
           {trustedCompanies.length ? (
             <>
               <style>{`
-                @keyframes mjisTrustedMarquee {
-                  0% { transform: translateX(0); }
-                  100% { transform: translateX(-50%); }
+                @keyframes mjisTrustedCompaniesMarquee {
+                  from {
+                    transform: translate3d(0, 0, 0);
+                  }
+
+                  to {
+                    transform: translate3d(-50%, 0, 0);
+                  }
                 }
-                .mjis-trusted-marquee {
-                  animation: mjisTrustedMarquee 34s linear infinite;
+
+                .mjis-trusted-companies-track {
+                  animation: mjisTrustedCompaniesMarquee 36s linear infinite;
+                  will-change: transform;
                 }
-                .mjis-trusted-marquee:hover {
+
+                .mjis-trusted-companies-track:hover,
+                .mjis-trusted-companies-track:focus-within {
                   animation-play-state: paused;
                 }
+
+                @media (max-width: 640px) {
+                  .mjis-trusted-companies-track {
+                    animation-duration: 30s;
+                  }
+                }
+
                 @media (prefers-reduced-motion: reduce) {
-                  .mjis-trusted-marquee {
-                    animation: none;
-                    transform: translateX(0);
+                  .mjis-trusted-companies-track {
+                    animation: none !important;
+                    transform: translate3d(0, 0, 0) !important;
                   }
                 }
               `}</style>
 
-              <div className="relative mt-10 overflow-hidden">
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-slate-950 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-slate-950 to-transparent" />
+              <div className="relative mt-12 overflow-hidden rounded-[1.75rem] border border-white/5 bg-[#0d1120] py-6 md:py-8">
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-20 w-16 bg-gradient-to-r from-[#0d1120] to-transparent md:w-28" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-20 w-16 bg-gradient-to-l from-[#0d1120] to-transparent md:w-28" />
 
-                <div className="mjis-trusted-marquee flex w-max items-stretch gap-5 py-2">
-                  {[...trustedCompanies, ...trustedCompanies].map((company, index) => (
-                    <div
-                      key={`${company.id}-${index}`}
-                      className="flex h-32 w-64 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white p-5 shadow-lg"
-                    >
-                      {company.logo_url ? (
-                        <img
-                          src={company.logo_url}
-                          alt={`${company.name} logo`}
-                          className="max-h-20 max-w-[210px] object-contain"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="text-center text-lg font-black text-slate-800">
-                          {company.name}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                <div className="mjis-trusted-companies-track flex w-max items-stretch gap-4 px-4 md:gap-5 md:px-5">
+                  {[...trustedCompanies, ...trustedCompanies].map(
+                    (company, index) => {
+                      const automaticLogoUrl = company.domain
+                        ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
+                            company.domain
+                          )}&sz=256`
+                        : null;
+
+                      const logoUrl = company.logo_url || automaticLogoUrl;
+
+                      return (
+                        <motion.article
+                          key={`${company.id}-${index}`}
+                          whileHover={{ y: -4, scale: 1.015 }}
+                          transition={{ duration: 0.25 }}
+                          className="w-[220px] shrink-0 md:w-[250px]"
+                        >
+                          <div className="overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#151a2a] p-3 shadow-xl shadow-black/20">
+                            <div className="flex h-28 items-center justify-center rounded-[1rem] bg-white px-5 md:h-32">
+                              {logoUrl ? (
+                                <img
+                                  src={logoUrl}
+                                  alt={`${company.name} logo`}
+                                  className="max-h-20 max-w-[200px] object-contain md:max-h-24"
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer"
+                                  onError={(event) => {
+                                    const image =
+                                      event.currentTarget;
+                                    image.style.display = "none";
+                                    const fallback =
+                                      image.parentElement?.querySelector(
+                                        "[data-logo-fallback]"
+                                      );
+
+                                    if (fallback instanceof HTMLElement) {
+                                      fallback.removeAttribute("hidden");
+                                    }
+                                  }}
+                                />
+                              ) : null}
+
+                              <div
+                                data-logo-fallback
+                                hidden={Boolean(logoUrl)}
+                                className="px-3 text-center text-lg font-black text-slate-800 md:text-xl"
+                              >
+                                {company.name}
+                              </div>
+                            </div>
+
+                            <div className="px-2 pb-1 pt-4 text-center">
+                              <div className="text-sm font-extrabold text-white md:text-base">
+                                {company.name}
+                              </div>
+
+                              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                                Industry Leader
+                              </div>
+                            </div>
+                          </div>
+                        </motion.article>
+                      );
+                    }
+                  )}
                 </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span>Continuous right-to-left motion</span>
+                <span className="hidden h-1 w-1 rounded-full bg-orange-500 sm:inline-block" />
+                <span>Hover to pause</span>
+                <span className="hidden h-1 w-1 rounded-full bg-orange-500 sm:inline-block" />
+                <span>Automatic logo resolution</span>
               </div>
             </>
           ) : (
-            <div className="mt-10 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-slate-400">
-              Company logos will appear here after Admin / HR uploads them from Website Media.
+            <div className="mt-10 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-10 text-center">
+              <div className="text-lg font-black text-white">
+                Trusted company logos are loading…
+              </div>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-400">
+                The website will automatically resolve company marks from
+                the trusted-company domain list.
+              </p>
             </div>
           )}
         </div>
+      {/* Trusted section wrapper closed above; no extra closing div here. */}
       </section>
 
       {/* =====================================================

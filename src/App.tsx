@@ -72,6 +72,10 @@ const ContactMessages = lazy(
   () => import("./pages/ContactMessages")
 );
 
+const WebsiteMedia = lazy(
+  () => import("./pages/WebsiteMedia")
+);
+
 const EmployeeSalarySlips = lazy(
   () => import("./pages/EmployeeSalarySlips")
 );
@@ -401,6 +405,15 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <ContactMessages />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/website-media"
+                  element={
+                    <ProtectedRoute>
+                      <WebsiteMedia />
                     </ProtectedRoute>
                   }
                 />
