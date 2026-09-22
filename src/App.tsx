@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
+import { registerSW } from "virtual:pwa-register";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -107,342 +108,360 @@ const PageFallback = () => (
 // APP
 // ============================================================
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
+const App = () => {
 
-        <BrowserRouter>
-          <AuthProvider>
-            <ScrollToTop />
+  // ✅ PWA AUTO UPDATE - Notifies all users when new version is deployed
+  useEffect(() => {
+    const updateSW = registerSW({
+      onNeedRefresh() {
+        const update = confirm(
+          "🚀 New version of MJIS is available! Click OK to update now."
+        );
+        if (update) updateSW(true);
+      },
+      onOfflineReady() {
+        console.log("✅ MJIS is ready to work offline");
+      },
+    });
+  }, []);
 
-            <Suspense fallback={<PageFallback />}>
-              <Routes>
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
 
-                {/* ==================================================
-                    PUBLIC WEBSITE
-                =================================================== */}
+          <BrowserRouter>
+            <AuthProvider>
+              <ScrollToTop />
 
-                <Route
-                  path="/"
-                  element={<Landing />}
-                />
+              <Suspense fallback={<PageFallback />}>
+                <Routes>
 
-                <Route
-                  path="/features"
-                  element={<Features />}
-                />
+                  {/* ==================================================
+                      PUBLIC WEBSITE
+                  =================================================== */}
 
-                <Route
-                  path="/how-it-works"
-                  element={<HowItWorks />}
-                />
+                  <Route
+                    path="/"
+                    element={<Landing />}
+                  />
 
-                <Route
-                  path="/pricing"
-                  element={<Pricing />}
-                />
+                  <Route
+                    path="/features"
+                    element={<Features />}
+                  />
 
-                <Route
-                  path="/privacy-policy"
-                  element={<PrivacyPolicy />}
-                />
+                  <Route
+                    path="/how-it-works"
+                    element={<HowItWorks />}
+                  />
 
-                <Route
-                  path="/terms-of-service"
-                  element={<TermsOfService />}
-                />
+                  <Route
+                    path="/pricing"
+                    element={<Pricing />}
+                  />
 
-                <Route
-                  path="/security"
-                  element={<Security />}
-                />
+                  <Route
+                    path="/privacy-policy"
+                    element={<PrivacyPolicy />}
+                  />
 
-                {/* ==================================================
-                    AUTH
-                =================================================== */}
+                  <Route
+                    path="/terms-of-service"
+                    element={<TermsOfService />}
+                  />
 
-                <Route
-                  path="/auth"
-                  element={<Auth />}
-                />
+                  <Route
+                    path="/security"
+                    element={<Security />}
+                  />
 
-                <Route
-                  path="/reset-password"
-                  element={<ResetPassword />}
-                />
+                  {/* ==================================================
+                      AUTH
+                  =================================================== */}
 
-                {/* ==================================================
-                    PROTECTED HRMS
-                =================================================== */}
+                  <Route
+                    path="/auth"
+                    element={<Auth />}
+                  />
 
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/reset-password"
+                    element={<ResetPassword />}
+                  />
 
-                <Route
-                  path="/employees"
-                  element={
-                    <ProtectedRoute>
-                      <Employees />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* ==================================================
+                      PROTECTED HRMS
+                  =================================================== */}
 
-                <Route
-                  path="/onboarding"
-                  element={
-                    <ProtectedRoute>
-                      <Onboarding />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* --------------------------------------------------
-                    OLD ONBOARDING REQUESTS REDIRECT
-                --------------------------------------------------- */}
+                  <Route
+                    path="/employees"
+                    element={
+                      <ProtectedRoute>
+                        <Employees />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/onboarding-requests"
-                  element={
-                    <Navigate
-                      to="/onboarding?tab=requests"
-                      replace
-                    />
-                  }
-                />
+                  <Route
+                    path="/onboarding"
+                    element={
+                      <ProtectedRoute>
+                        <Onboarding />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/leaves"
-                  element={
-                    <ProtectedRoute>
-                      <Leaves />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* --------------------------------------------------
+                      OLD ONBOARDING REQUESTS REDIRECT
+                  --------------------------------------------------- */}
 
-                {/* --------------------------------------------------
-                    OLD LEAVE APPROVALS REDIRECT
-                --------------------------------------------------- */}
+                  <Route
+                    path="/onboarding-requests"
+                    element={
+                      <Navigate
+                        to="/onboarding?tab=requests"
+                        replace
+                      />
+                    }
+                  />
 
-                <Route
-                  path="/leave-approvals"
-                  element={
-                    <Navigate
-                      to="/leaves"
-                      replace
-                    />
-                  }
-                />
+                  <Route
+                    path="/leaves"
+                    element={
+                      <ProtectedRoute>
+                        <Leaves />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/reimbursements"
-                  element={
-                    <ProtectedRoute>
-                      <Reimbursements />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* --------------------------------------------------
+                      OLD LEAVE APPROVALS REDIRECT
+                  --------------------------------------------------- */}
 
-                <Route
-                  path="/assets"
-                  element={
-                    <ProtectedRoute>
-                      <Assets />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/leave-approvals"
+                    element={
+                      <Navigate
+                        to="/leaves"
+                        replace
+                      />
+                    }
+                  />
 
-                <Route
-                  path="/payroll"
-                  element={
-                    <ProtectedRoute>
-                      <Payroll />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/reimbursements"
+                    element={
+                      <ProtectedRoute>
+                        <Reimbursements />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/reports"
-                  element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/assets"
+                    element={
+                      <ProtectedRoute>
+                        <Assets />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/settings"
-                  element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/payroll"
+                    element={
+                      <ProtectedRoute>
+                        <Payroll />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute>
+                        <Reports />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/performance"
-                  element={
-                    <ProtectedRoute>
-                      <Performance />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute>
+                        <Settings />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/reviews-management"
-                  element={
-                    <ProtectedRoute>
-                      <ReviewsManagement />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <Profile />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/attendance"
-                  element={
-                    <ProtectedRoute>
-                      <Attendance />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/performance"
+                    element={
+                      <ProtectedRoute>
+                        <Performance />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-  path="/salary-slips"
-  element={
-    <ProtectedRoute>
-      <EmployeeSalarySlips />
-    </ProtectedRoute>
-  }
-/>
+                  <Route
+                    path="/reviews-management"
+                    element={
+                      <ProtectedRoute>
+                        <ReviewsManagement />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/departments"
-                  element={
-                    <ProtectedRoute>
-                      <Departments />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/attendance"
+                    element={
+                      <ProtectedRoute>
+                        <Attendance />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/calendar"
-                  element={
-                    <ProtectedRoute>
-                      <CompanyCalendar />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/salary-slips"
+                    element={
+                      <ProtectedRoute>
+                        <EmployeeSalarySlips />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/notification-preferences"
-                  element={
-                    <ProtectedRoute>
-                      <NotificationPreferences />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/departments"
+                    element={
+                      <ProtectedRoute>
+                        <Departments />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/changelog"
-                  element={
-                    <ProtectedRoute>
-                      <Changelog />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/calendar"
+                    element={
+                      <ProtectedRoute>
+                        <CompanyCalendar />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* ==================================================
-                    NEW WORK ENQUIRIES
-                =================================================== */}
+                  <Route
+                    path="/notification-preferences"
+                    element={
+                      <ProtectedRoute>
+                        <NotificationPreferences />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/work-enquiries"
-                  element={
-                    <ProtectedRoute>
-                      <WorkEnquiries />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/changelog"
+                    element={
+                      <ProtectedRoute>
+                        <Changelog />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/recruitment"
-                  element={
-                    <ProtectedRoute>
-                      <Recruitment />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* ==================================================
+                      NEW WORK ENQUIRIES
+                  =================================================== */}
 
-                <Route
-                  path="/contact-messages"
-                  element={
-                    <ProtectedRoute>
-                      <ContactMessages />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/work-enquiries"
+                    element={
+                      <ProtectedRoute>
+                        <WorkEnquiries />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/website-media"
-                  element={
-                    <ProtectedRoute>
-                      <WebsiteMedia />
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/recruitment"
+                    element={
+                      <ProtectedRoute>
+                        <Recruitment />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* ==================================================
-                    WebsiteMedia itself is restricted to Admin / HR. Duplicate route below is intentionally disabled.
-                    Existing ProtectedRoute is preserved.
-                    WebsiteMedia itself is restricted to Admin / HR.
-                =================================================== */}
-                {false && <Route
-                  path="/website-media"
-                  element={
-                    <ProtectedRoute>
-                      <WebsiteMedia />
-                    </ProtectedRoute>
-                  }
-                />}
+                  <Route
+                    path="/contact-messages"
+                    element={
+                      <ProtectedRoute>
+                        <ContactMessages />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* ==================================================
-                    FALLBACK
-                =================================================== */}
+                  <Route
+                    path="/website-media"
+                    element={
+                      <ProtectedRoute>
+                        <WebsiteMedia />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="*"
-                  element={<NotFound />}
-                />
+                  {/* ==================================================
+                      WebsiteMedia itself is restricted to Admin / HR. Duplicate route below is intentionally disabled.
+                      Existing ProtectedRoute is preserved.
+                      WebsiteMedia itself is restricted to Admin / HR.
+                  =================================================== */}
+                  {false && <Route
+                    path="/website-media"
+                    element={
+                      <ProtectedRoute>
+                        <WebsiteMedia />
+                      </ProtectedRoute>
+                    }
+                  />}
 
-              </Routes>
-            </Suspense>
+                  {/* ==================================================
+                      FALLBACK
+                  =================================================== */}
 
-            <CookieConsent />
-            <OfflineFallback />
+                  <Route
+                    path="*"
+                    element={<NotFound />}
+                  />
 
-          </AuthProvider>
-        </BrowserRouter>
+                </Routes>
+              </Suspense>
 
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+              <CookieConsent />
+              <OfflineFallback />
+
+            </AuthProvider>
+          </BrowserRouter>
+
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+};
 
 export default App;
