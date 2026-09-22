@@ -321,13 +321,7 @@ export function DashboardLayout({
   };
 
   return (
-    <div
-      className={cn(
-        "min-h-screen min-w-0 overflow-x-hidden bg-background",
-        location.pathname === "/dashboard" &&
-          "mjis-dashboard-shell"
-      )}
-    >
+    <div className="min-h-screen min-w-0 overflow-x-hidden bg-background">
 
       {/* =====================================================
           MOBILE SIDEBAR OVERLAY
@@ -347,8 +341,6 @@ export function DashboardLayout({
       <aside
         className={cn(
           "fixed left-0 top-0 z-50 h-full w-72 transform bg-card shadow-xl transition-transform duration-300 ease-in-out lg:translate-x-0",
-          location.pathname === "/dashboard" &&
-            "mjis-dashboard-sidebar",
           sidebarOpen
             ? "translate-x-0"
             : "-translate-x-full"
@@ -538,13 +530,7 @@ export function DashboardLayout({
             TOP HEADER
         ==================================================== */}
 
-        <header
-          className={cn(
-            "sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-lg lg:px-8",
-            location.pathname === "/dashboard" &&
-              "mjis-dashboard-header"
-          )}
-        >
+        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-lg lg:px-8">
 
           <div className="flex items-center gap-4">
 
