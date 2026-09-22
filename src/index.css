@@ -10,9 +10,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+All colors MUST be HSL. */
 
 @layer base {
   :root {
@@ -42,63 +41,41 @@ All colors MUST be HSL.
 
     --border: 212 26% 83%;
     --input: 212 26% 83%;
-
     --ring: 200 98% 39%;
 
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 222 47% 11%;
-
     --sidebar-primary: 200 98% 39%;
-
     --sidebar-primary-foreground: 204 100% 97%;
-
     --sidebar-accent: 215 24% 26%;
-
     --sidebar-accent-foreground: 210 40% 98%;
-
     --sidebar-border: 212 26% 83%;
-
     --sidebar-ring: 200 98% 39%;
 
     --chart-1: 198 93% 59%;
-
     --chart-2: 213 93% 67%;
-
     --chart-3: 215 20% 65%;
-
     --chart-4: 215 16% 46%;
-
     --chart-5: 215 19% 34%;
 
     --sidebar: 210 40% 98%;
 
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-
     --font-serif: 'Lora', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-
     --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
     --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-
     --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-
     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-
     --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-
     --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-
     --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-
     --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-
     --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
 
     --tracking-normal: 0em;
-
     --spacing: 0.25rem;
   }
 
@@ -118,15 +95,19 @@ All colors MUST be HSL.
     --secondary: 212 26% 83%;
     --secondary-foreground: 228 84% 4%;
 
+    --muted: 215 16% 46%;
+    --muted-foreground: 210 40% 98%;
+
     --accent: 228 84% 4%;
     --accent-foreground: 215 20% 65%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 204 80% 97%;
+    --destructive-foreground: 0 85% 97%;
 
     --border: 215 19% 34%;
     --input: 215 19% 34%;
     --ring: 198 93% 59%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 198 93% 59%;
@@ -135,12 +116,15 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 228 84% 4%;
     --sidebar-border: 215 19% 34%;
     --sidebar-ring: 198 93% 59%;
+
     --chart-1: 199 95% 73%;
     --chart-2: 211 96% 78%;
     --chart-3: 215 20% 65%;
     --chart-4: 215 16% 46%;
     --chart-5: 215 19% 34%;
+
     --sidebar: 217 32% 17%;
+
     --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
@@ -149,6 +133,7 @@ All colors MUST be HSL.
     --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
     --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
     --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+
     --radius: 0rem;
   }
 }
@@ -163,125 +148,160 @@ All colors MUST be HSL.
   }
 }
 
-/* ============================================================
-   MJIS FAST CSS-ONLY 3D DASHBOARD
-   No Three.js, no WebGL, no new package, no continuous animation.
-   ============================================================ */
-
-.mjis-dashboard-shell {
-  --mjis-dashboard-perspective: 1400px;
-}
-
-.mjis-dashboard-shell .mjis-dashboard-header {
-  transform: translateZ(0);
-  box-shadow:
-    0 1px 0 hsl(var(--border)),
-    0 8px 24px hsl(222 47% 11% / 0.06);
-}
-
-.mjis-dashboard-shell .mjis-dashboard-sidebar {
-  transform: translateZ(0);
-  box-shadow:
-    12px 0 28px hsl(222 47% 11% / 0.06),
-    inset -1px 0 0 hsl(var(--border));
-}
+/* ================================================================
+   MJIS FAST 3D DASHBOARD LAYER
+   CSS-only, scoped to dashboard classes, no WebGL/Three.js package.
+   ================================================================ */
 
 .mjis-3d-dashboard {
-  position: relative;
-  isolation: isolate;
+  --mjis-dashboard-perspective: 1400px;
   perspective: var(--mjis-dashboard-perspective);
   transform-style: preserve-3d;
+  isolation: isolate;
+  position: relative;
 }
 
 .mjis-3d-dashboard::before {
   content: "";
   position: absolute;
-  inset: -28px;
-  z-index: -1;
+  inset: -2rem;
   pointer-events: none;
+  z-index: -1;
   background:
-    radial-gradient(
-      circle at 10% 5%,
-      hsl(200 98% 39% / 0.07),
-      transparent 28%
-    ),
-    radial-gradient(
-      circle at 90% 18%,
-      hsl(213 93% 67% / 0.08),
-      transparent 32%
-    );
+    radial-gradient(circle at 15% 10%, hsl(var(--primary) / 0.10), transparent 32%),
+    radial-gradient(circle at 90% 20%, hsl(var(--primary) / 0.07), transparent 30%),
+    radial-gradient(circle at 55% 95%, hsl(var(--foreground) / 0.04), transparent 34%);
 }
 
-.mjis-3d-dashboard .mjis-3d-card {
-  transform:
-    translate3d(0, 0, 0)
-    rotateX(0deg)
-    rotateY(0deg);
+.mjis-3d-section {
   transform-style: preserve-3d;
-  backface-visibility: hidden;
-  box-shadow:
-    0 1px 2px hsl(222 47% 11% / 0.06),
-    0 8px 20px hsl(222 47% 11% / 0.07),
-    0 18px 42px hsl(222 47% 11% / 0.045);
+}
+
+.mjis-3d-section > * {
+  transform-style: preserve-3d;
+}
+
+.mjis-3d-section .rounded-xl,
+.mjis-3d-section .rounded-lg,
+.mjis-3d-section [data-radix-collection-item] {
+  transform: translate3d(0, 0, 0);
   transition:
-    transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1),
-    box-shadow 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    border-color 220ms ease;
+  transform-style: preserve-3d;
   will-change: transform;
 }
 
-.mjis-3d-dashboard .mjis-3d-card:hover {
-  transform:
-    translate3d(0, -6px, 10px)
-    rotateX(1.25deg)
-    rotateY(-0.8deg);
+.mjis-3d-section .rounded-xl:hover,
+.mjis-3d-section .rounded-lg:hover,
+.mjis-3d-section [data-radix-collection-item]:hover {
+  transform: translate3d(0, -4px, 18px) rotateX(1deg) rotateY(-1deg);
   box-shadow:
-    0 3px 5px hsl(222 47% 11% / 0.08),
-    0 14px 28px hsl(222 47% 11% / 0.10),
-    0 26px 58px hsl(222 47% 11% / 0.06);
+    0 18px 34px hsl(var(--foreground) / 0.12),
+    0 6px 14px hsl(var(--foreground) / 0.09);
 }
 
-.mjis-3d-dashboard .mjis-3d-card > * {
-  transform: translateZ(0.01px);
-}
-
-.mjis-3d-dashboard .mjis-3d-section {
-  transform: translateZ(0);
-}
-
-.mjis-3d-dashboard .mjis-3d-action {
-  transform: translateZ(0);
+.mjis-3d-card {
+  transform: translate3d(0, 0, 0);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
   transition:
-    transform 160ms ease,
+    transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    border-color 220ms ease;
+  will-change: transform;
+}
+
+.mjis-3d-card:hover {
+  transform: translate3d(0, -5px, 24px) rotateX(2deg) rotateY(-2deg);
+  box-shadow:
+    0 22px 42px hsl(var(--foreground) / 0.14),
+    0 8px 16px hsl(var(--foreground) / 0.10);
+}
+
+.mjis-3d-action {
+  transform: translate3d(0, 0, 0);
+  transform-style: preserve-3d;
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1),
     box-shadow 160ms ease;
 }
 
-.mjis-3d-dashboard .mjis-3d-action:hover {
-  transform: translate3d(0, -2px, 4px);
-  box-shadow:
-    0 8px 18px hsl(222 47% 11% / 0.08);
+.mjis-3d-action:hover {
+  transform: translate3d(0, -2px, 10px) rotateX(1deg);
+  box-shadow: 0 10px 20px hsl(var(--foreground) / 0.10);
 }
 
-.mjis-3d-dashboard .mjis-dashboard-loading {
-  perspective: var(--mjis-dashboard-perspective);
+.mjis-3d-loading {
+  transform: translate3d(0, 0, 0);
+  animation: mjis-dashboard-float 1800ms ease-in-out infinite;
+}
+
+@keyframes mjis-dashboard-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -2px, 4px);
+  }
 }
 
 @media (max-width: 1024px) {
-  .mjis-3d-dashboard .mjis-3d-card:hover {
-    transform:
-      translate3d(0, -3px, 4px)
-      rotateX(0.6deg)
-      rotateY(-0.4deg);
+  .mjis-3d-dashboard {
+    --mjis-dashboard-perspective: 1000px;
+  }
+
+  .mjis-3d-section .rounded-xl:hover,
+  .mjis-3d-section .rounded-lg:hover,
+  .mjis-3d-section [data-radix-collection-item]:hover {
+    transform: translate3d(0, -3px, 10px) rotateX(0.8deg) rotateY(-0.8deg);
+  }
+
+  .mjis-3d-card:hover {
+    transform: translate3d(0, -4px, 14px) rotateX(1deg) rotateY(-1deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .mjis-3d-dashboard {
+    perspective: 900px;
+  }
+
+  .mjis-3d-section .rounded-xl,
+  .mjis-3d-section .rounded-lg,
+  .mjis-3d-section [data-radix-collection-item],
+  .mjis-3d-card,
+  .mjis-3d-action {
+    transition-duration: 170ms;
+  }
+
+  .mjis-3d-section .rounded-xl:hover,
+  .mjis-3d-section .rounded-lg:hover,
+  .mjis-3d-section [data-radix-collection-item]:hover,
+  .mjis-3d-card:hover,
+  .mjis-3d-action:hover {
+    transform: translate3d(0, -2px, 6px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mjis-3d-dashboard .mjis-3d-card,
-  .mjis-3d-dashboard .mjis-3d-action {
-    transition: none;
+  .mjis-3d-dashboard,
+  .mjis-3d-section,
+  .mjis-3d-card,
+  .mjis-3d-action,
+  .mjis-3d-loading {
+    animation: none !important;
+    transition: none !important;
   }
 
-  .mjis-3d-dashboard .mjis-3d-card:hover,
-  .mjis-3d-dashboard .mjis-3d-action:hover {
-    transform: none;
+  .mjis-3d-section .rounded-xl:hover,
+  .mjis-3d-section .rounded-lg:hover,
+  .mjis-3d-section [data-radix-collection-item]:hover,
+  .mjis-3d-card:hover,
+  .mjis-3d-action:hover {
+    transform: none !important;
   }
 }
