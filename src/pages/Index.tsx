@@ -75,12 +75,12 @@ const Index = () => {
   ) {
     return (
       <DashboardLayout>
-        <div className="space-y-6 mjis-dashboard-loading">
+        <div className="space-y-6 mjis-3d-dashboard">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton
                 key={i}
-                className="h-32 rounded-xl"
+                className="h-32 rounded-xl mjis-3d-loading"
               />
             ))}
           </div>
@@ -93,14 +93,16 @@ const Index = () => {
   if (!employeeStatus?.isEmployee && !isAdminOrHR) {
     return (
       <DashboardLayout>
-        <NonEmployeeDashboard />
+        <div className="mjis-3d-dashboard">
+          <NonEmployeeDashboard />
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="mjis-3d-dashboard space-y-6">
+      <div className="space-y-6 mjis-3d-dashboard">
         {/* Update Notification for Admins */}
         <div className="mjis-3d-section">
           <UpdateNotification />
@@ -214,14 +216,14 @@ const Index = () => {
             hasPendingApprovals
               ? "lg:grid-cols-4"
               : "lg:grid-cols-3"
-          }`}
+          } mjis-3d-section`}
         >
           {isLoading ? (
             <>
               {[1, 2, 3].map((i) => (
                 <Skeleton
                   key={i}
-                  className="h-32 rounded-xl"
+                  className="h-32 rounded-xl mjis-3d-loading"
                 />
               ))}
             </>
@@ -229,9 +231,7 @@ const Index = () => {
             <>
               <StatsCard
                 title="Leave Balance"
-                value={`${stats?.availableLeaves || 0} / ${
-                  stats?.totalLeaves || 0
-                }`}
+                value={`${stats?.availableLeaves || 0} / ${stats?.totalLeaves || 0}`}
                 icon={
                   <CalendarDays className="h-6 w-6" />
                 }
@@ -299,14 +299,14 @@ const Index = () => {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-3 mjis-3d-section">
           {/* Activity Feed */}
-          <div className="lg:col-span-2 mjis-3d-section">
+          <div className="lg:col-span-2">
             <RecentActivity />
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6 mjis-3d-section">
+          <div className="space-y-6">
             <UpcomingHolidays />
             <UpcomingCelebrations />
             <PendingApprovalsWidget />
@@ -319,3 +319,11 @@ const Index = () => {
 };
 
 export default Index;
+
+/*
+ * MJIS FAST 3D DASHBOARD NOTE
+ *
+ * The dashboard gets its 3D treatment from scoped CSS in index.css.
+ * Keeping the effect class-based avoids adding a WebGL/Three.js dependency.
+ * Existing dashboard behavior and data flow remain unchanged.
+ */
