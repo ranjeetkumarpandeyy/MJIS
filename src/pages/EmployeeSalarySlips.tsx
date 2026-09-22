@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   CheckCircle2,
   Download,
   Eye,
+  FileCheck2,
   FileText,
   Loader2,
   LockKeyhole,
   Printer,
   ReceiptIndianRupee,
+  Save,
+  ShieldCheck,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -43,6 +48,52 @@ type SalarySlip = {
   status: "draft" | "processed" | "paid";
   paid_at: string | null;
 };
+
+type PayrollIdentity = {
+  user_id: string;
+  employee_id: string | null;
+  bank_name: string;
+  bank_account_number: string;
+  ifsc_code: string;
+  pan_number: string;
+  uan_number: string;
+  esi_number: string;
+  insurance_number: string;
+  aadhaar_number: string;
+};
+
+type PayrollDocument = {
+  id: string;
+  user_id: string;
+  employee_id: string | null;
+  document_type: string;
+  document_name: string;
+  storage_path: string;
+  created_at: string;
+};
+
+type SalaryStructure = {
+  basic_salary: number | null;
+  hra: number | null;
+  transport_allowance: number | null;
+  medical_allowance: number | null;
+  other_allowances: number | null;
+  tax_deduction: number | null;
+  pf_deduction: number | null;
+  effective_from: string | null;
+};
+
+const REQUIRED_PAYROLL_DOCUMENTS = [
+  { type: "Aadhaar Card", hint: "Aadhaar / identity proof" },
+  { type: "PAN Card", hint: "PAN card copy" },
+  { type: "Bank Proof", hint: "Cancelled cheque / bank passbook / bank proof" },
+  { type: "Insurance Document", hint: "Insurance / ESIC / policy document" },
+  { type: "UAN Document", hint: "UAN card / EPFO document (if available)" },
+  { type: "ESI Document", hint: "ESI card / ESI document (if available)" },
+];
+
+const documentTypeSafe = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 const MONTHS = [
   "January",
@@ -125,6 +176,316 @@ export default function EmployeeSalarySlips() {
 
   const [selectedSlip, setSelectedSlip] =
     useState<SalarySlip | null>(null);
+
+  // LOP is calculated for the currently selected salary slip month.
+  // This value is shared by the View, Print and PDF salary-slip outputs.
+  const [selectedLopDays, setSelectedLopDays] = useState(0);
+
+  // ============================================================
+  // SHARED CURRENT SALARY + PAYROLL/KYC DATA
+  // This uses the exact same records as Employee Edit -> Salary.
+  // ============================================================
+
+  const { data: currentSalaryStructure } = useQuery({
+    queryKey: [
+      "employee-salary-slips-current-structure",
+      employeeStatus?.employeeId,
+    ],
+    queryFn: async () => {
+      if (!employeeStatus?.employeeId) return null;
+
+      const { data, error } = await supabase
+        .from("salary_structures")
+        .select(
+          "basic_salary, hra, transport_allowance, medical_allowance, other_allowances, tax_deduction, pf_deduction, effective_from"
+        )
+        .eq("employee_id", employeeStatus.employeeId)
+        .order("effective_from", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as SalaryStructure | null;
+    },
+    enabled:
+      !employeeStatusLoading &&
+      !!employeeStatus?.employeeId,
+  });
+
+  const { data: payrollIdentity, refetch: refetchPayrollIdentity } =
+    useQuery({
+      queryKey: [
+        "employee-salary-slips-payroll-identity",
+        employeeStatus?.employeeId,
+      ],
+      queryFn: async () => {
+        if (!employeeStatus?.employeeId) return null;
+
+        const { data, error } = await (supabase as any)
+          .from("employee_payroll_profiles")
+          .select(
+            "user_id, employee_id, bank_name, bank_account_number, ifsc_code, pan_number, uan_number, esi_number, insurance_number, aadhaar_number"
+          )
+          .eq("employee_id", employeeStatus.employeeId)
+          .maybeSingle();
+
+        if (error) throw error;
+        return (data as PayrollIdentity | null) ?? null;
+      },
+      enabled:
+        !employeeStatusLoading &&
+        !!employeeStatus?.employeeId,
+    });
+
+  const { data: payrollDocuments = [], refetch: refetchPayrollDocuments } =
+    useQuery({
+      queryKey: [
+        "employee-salary-slips-payroll-documents",
+        employeeStatus?.employeeId,
+      ],
+      queryFn: async () => {
+        if (!employeeStatus?.employeeId) return [];
+
+        const { data, error } = await (supabase as any)
+          .from("employee_payroll_documents")
+          .select(
+            "id, user_id, employee_id, document_type, document_name, storage_path, created_at"
+          )
+          .eq("employee_id", employeeStatus.employeeId)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        return (data ?? []) as PayrollDocument[];
+      },
+      enabled:
+        !employeeStatusLoading &&
+        !!employeeStatus?.employeeId,
+    });
+
+  const [payrollIdentityForm, setPayrollIdentityForm] =
+    useState<Omit<PayrollIdentity, "user_id" | "employee_id">>({
+      bank_name: "",
+      bank_account_number: "",
+      ifsc_code: "",
+      pan_number: "",
+      uan_number: "",
+      esi_number: "",
+      insurance_number: "",
+      aadhaar_number: "",
+    });
+
+  const [savingPayrollIdentity, setSavingPayrollIdentity] =
+    useState(false);
+  const [payrollIdentityMessage, setPayrollIdentityMessage] =
+    useState("");
+  const [uploadingPayrollDocument, setUploadingPayrollDocument] =
+    useState<string | null>(null);
+  const [payrollDocumentMessage, setPayrollDocumentMessage] =
+    useState("");
+
+  useEffect(() => {
+    setPayrollIdentityForm({
+      bank_name: payrollIdentity?.bank_name ?? "",
+      bank_account_number: payrollIdentity?.bank_account_number ?? "",
+      ifsc_code: payrollIdentity?.ifsc_code ?? "",
+      pan_number: payrollIdentity?.pan_number ?? "",
+      uan_number: payrollIdentity?.uan_number ?? "",
+      esi_number: payrollIdentity?.esi_number ?? "",
+      insurance_number: payrollIdentity?.insurance_number ?? "",
+      aadhaar_number: payrollIdentity?.aadhaar_number ?? "",
+    });
+  }, [payrollIdentity]);
+
+  const savePayrollIdentity = async () => {
+    if (!employeeStatus?.employeeId || !user?.id) {
+      setPayrollIdentityMessage(
+        "Your employee record is not linked to your portal account yet."
+      );
+      return;
+    }
+
+    setSavingPayrollIdentity(true);
+    setPayrollIdentityMessage("");
+
+    try {
+      const { error: saveError } = await (supabase as any)
+        .from("employee_payroll_profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            employee_id: employeeStatus.employeeId,
+            ...payrollIdentityForm,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (saveError) throw saveError;
+
+      await refetchPayrollIdentity();
+
+      setPayrollIdentityMessage(
+        "Payroll and statutory details saved successfully."
+      );
+    } catch (saveError) {
+      console.error("Employee payroll save error:", saveError);
+      setPayrollIdentityMessage(
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save payroll details."
+      );
+    } finally {
+      setSavingPayrollIdentity(false);
+    }
+  };
+
+  const payrollDocumentSlug = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const handlePayrollDocumentUpload = async (
+    documentType: string,
+    file: File
+  ) => {
+    if (!employeeStatus?.employeeId || !user?.id) {
+      setPayrollDocumentMessage(
+        "Your employee record is not linked to your portal account yet."
+      );
+      return;
+    }
+
+    setUploadingPayrollDocument(documentType);
+    setPayrollDocumentMessage("");
+
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      const storagePath = `${user.id}/${payrollDocumentSlug(
+        documentType
+      )}/current`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("employee-payroll-documents")
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { error: documentError } = await (supabase as any)
+        .from("employee_payroll_documents")
+        .upsert(
+          {
+            user_id: user.id,
+            employee_id: employeeStatus.employeeId,
+            document_type: documentType,
+            document_name: file.name,
+            storage_path: storagePath,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,document_type" }
+        );
+
+      if (documentError) throw documentError;
+
+      await refetchPayrollDocuments();
+
+      setPayrollDocumentMessage(
+        `${documentType} uploaded/replaced successfully.`
+      );
+    } catch (uploadError) {
+      console.error("Employee payroll document upload error:", uploadError);
+      setPayrollDocumentMessage(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Unable to upload document."
+      );
+    } finally {
+      setUploadingPayrollDocument(null);
+    }
+  };
+
+  const openPayrollDocument = async (payrollDocument: PayrollDocument) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("employee-payroll-documents")
+        .createSignedUrl(payrollDocument.storage_path, 60 * 10);
+
+      if (error) throw error;
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (openError) {
+      console.error("Employee payroll document open error:", openError);
+      setPayrollDocumentMessage(
+        openError instanceof Error
+          ? openError.message
+          : "Unable to open document."
+      );
+    }
+  };
+  // ============================================================
+  // SHARED LOP CALCULATION
+  // The same approved unpaid-leave calculation is used by the
+  // salary-slip View, Print and Download PDF outputs.
+  // ============================================================
+  const getLopDaysForSlip = async (slip: SalarySlip) => {
+    const periodStart = new Date(
+      slip.year,
+      slip.month - 1,
+      1
+    );
+    const periodEnd = new Date(
+      slip.year,
+      slip.month,
+      0
+    );
+
+    const { data: unpaidLeaves, error: lopError } = await supabase
+      .from("leave_requests")
+      .select(
+        "days_count, leave_type:leave_types!leave_requests_leave_type_id_fkey(is_paid)"
+      )
+      .eq("employee_id", slip.employee_id)
+      .eq("status", "approved")
+      .gte(
+        "start_date",
+        periodStart.toISOString().slice(0, 10)
+      )
+      .lte(
+        "end_date",
+        periodEnd.toISOString().slice(0, 10)
+      );
+
+    if (lopError) {
+      console.warn("LOP calculation failed:", lopError);
+      return 0;
+    }
+
+    return (unpaidLeaves ?? []).reduce((sum, item) => {
+      const leaveType = item.leave_type as
+        | { is_paid?: boolean | null }
+        | null;
+
+      return leaveType?.is_paid === false
+        ? sum + Number(item.days_count ?? 0)
+        : sum;
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (!selectedSlip) {
+      setSelectedLopDays(0);
+      return;
+    }
+
+    void getLopDaysForSlip(selectedSlip).then(setSelectedLopDays);
+  }, [selectedSlip]);
+
 
   const [downloadLoading, setDownloadLoading] =
     useState<string | null>(null);
@@ -393,6 +754,12 @@ export default function EmployeeSalarySlips() {
                 )
               : "—",
           ],
+          [
+            "LOP Days",
+            String(
+              await getLopDaysForSlip(slip)
+            ),
+          ],
         ],
 
         headStyles:
@@ -420,6 +787,62 @@ export default function EmployeeSalarySlips() {
         (doc as any).lastAutoTable
           ?.finalY + 10 ||
         currentY + 55;
+
+      /*
+       * Payroll / statutory information
+       * Uses the same employee_payroll_profiles record shown
+       * in Employee Edit -> Salary and on the employee dashboard.
+       */
+      autoTable(doc, {
+        startY: currentY,
+
+        theme: "grid",
+
+        head: [["Payroll & Statutory Information", "Details"]],
+
+        body: [
+          ["UAN Number", payrollIdentity?.uan_number || "—"],
+          ["Aadhaar Number", payrollIdentity?.aadhaar_number || "—"],
+          ["PAN Number", payrollIdentity?.pan_number || "—"],
+          ["ESI Number", payrollIdentity?.esi_number || "—"],
+          [
+            "Insurance Number",
+            payrollIdentity?.insurance_number || "—",
+          ],
+          ["Bank Name", payrollIdentity?.bank_name || "—"],
+          [
+            "Bank Account Number",
+            payrollIdentity?.bank_account_number || "—",
+          ],
+          ["IFSC Code", payrollIdentity?.ifsc_code || "—"],
+        ],
+
+        headStyles:
+          PDF_TABLE_HEAD_STYLE,
+
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+          textColor:
+            PDF_COLORS.dark,
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 55,
+          },
+
+          1: {
+            cellWidth: "auto",
+          },
+        },
+      });
+
+      currentY =
+        (doc as any).lastAutoTable
+          ?.finalY + 10 ||
+        currentY + 95;
+
 
       /*
        * Earnings + deductions
@@ -740,6 +1163,9 @@ export default function EmployeeSalarySlips() {
         Number(
           slip.total_allowances
         );
+
+      const printLopDays =
+        await getLopDaysForSlip(slip);
 
       const printWindow =
         window.open(
@@ -1114,6 +1540,68 @@ export default function EmployeeSalarySlips() {
                     }</td>
                   </tr>
 
+                  <tr>
+                    <td>LOP Days</td>
+                    <td>${printLopDays}</td>
+                  </tr>
+
+                </table>
+
+              </div>
+
+              <div class="section">
+
+                <div class="section-title">
+                  Payroll &amp; Statutory Information
+                </div>
+
+                <table>
+
+                  <tr>
+                    <th>Field</th>
+                    <th>Details</th>
+                  </tr>
+
+                  <tr>
+                    <td>UAN Number</td>
+                    <td>${escapeHtml(payrollIdentity?.uan_number || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>Aadhaar Number</td>
+                    <td>${escapeHtml(payrollIdentity?.aadhaar_number || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>PAN Number</td>
+                    <td>${escapeHtml(payrollIdentity?.pan_number || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>ESI Number</td>
+                    <td>${escapeHtml(payrollIdentity?.esi_number || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>Insurance Number</td>
+                    <td>${escapeHtml(payrollIdentity?.insurance_number || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>Bank Name</td>
+                    <td>${escapeHtml(payrollIdentity?.bank_name || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>Bank Account Number</td>
+                    <td>${escapeHtml(payrollIdentity?.bank_account_number || "—")}</td>
+                  </tr>
+
+                  <tr>
+                    <td>IFSC Code</td>
+                    <td>${escapeHtml(payrollIdentity?.ifsc_code || "—")}</td>
+                  </tr>
+
                 </table>
 
               </div>
@@ -1400,6 +1888,386 @@ export default function EmployeeSalarySlips() {
             {error}
           </div>
         )}
+
+        {/* =====================================================
+            CURRENT PAYROLL / STATUTORY PROFILE
+            Same source of truth as Employee Edit -> Salary.
+        ====================================================== */}
+
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+            <div className="flex items-start gap-3">
+
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+
+              <div>
+
+                <h2 className="text-lg font-bold">
+                  Payroll & Statutory Information
+                </h2>
+
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Same employee payroll/KYC details used by HR in
+                  Employee Edit → Salary.
+                </p>
+
+              </div>
+
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void savePayrollIdentity()}
+              disabled={savingPayrollIdentity}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {savingPayrollIdentity ? "Saving..." : "Save Details"}
+            </button>
+
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+
+            {[
+              ["UAN Number", "uan_number", "Enter UAN number"],
+              ["Aadhaar Number", "aadhaar_number", "Enter Aadhaar number"],
+              ["PAN Number", "pan_number", "Enter PAN number"],
+              ["ESI Number", "esi_number", "Enter ESI number"],
+              ["Insurance Number", "insurance_number", "Enter insurance number"],
+              ["Bank Name", "bank_name", "Enter bank name"],
+              ["Bank Account Number", "bank_account_number", "Enter bank account number"],
+              ["IFSC Code", "ifsc_code", "Enter IFSC code"],
+            ].map(([label, key, placeholder]) => (
+
+              <div key={key} className="space-y-2">
+
+                <label
+                  htmlFor={`salary-slip-payroll-${key}`}
+                  className="text-sm font-medium"
+                >
+                  {label}
+                </label>
+
+                <input
+                  id={`salary-slip-payroll-${key}`}
+                  value={
+                    payrollIdentityForm[
+                      key as keyof typeof payrollIdentityForm
+                    ]
+                  }
+                  onChange={(event) =>
+                    setPayrollIdentityForm((prev) => ({
+                      ...prev,
+                      [key]: event.target.value,
+                    }))
+                  }
+                  placeholder={placeholder}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+
+              </div>
+
+            ))}
+
+          </div>
+
+          {payrollIdentityMessage && (
+            <div className="mt-4 rounded-xl border border-border bg-background p-3 text-sm">
+              {payrollIdentityMessage}
+            </div>
+          )}
+
+          <div className="mt-6 rounded-xl border border-border bg-background p-4">
+
+            <div className="flex items-center gap-2">
+
+              <FileCheck2 className="h-5 w-5 text-primary" />
+
+              <div>
+
+                <h3 className="font-semibold">
+                  Payroll / KYC Documents
+                </h3>
+
+                <p className="text-xs text-muted-foreground">
+                  Uploaded documents can be opened or replaced.
+                  Delete is locked for employees.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+              {REQUIRED_PAYROLL_DOCUMENTS.map((requiredDocument) => {
+
+                const payrollDocument = payrollDocuments.find(
+                  (item) =>
+                    item.document_type === requiredDocument.type
+                );
+
+                return (
+
+                  <div
+                    key={requiredDocument.type}
+                    className="rounded-xl border border-border bg-card p-4"
+                  >
+
+                    <div className="flex items-start justify-between gap-3">
+
+                      <div>
+
+                        <div className="font-medium">
+                          {requiredDocument.type}
+                        </div>
+
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {requiredDocument.hint}
+                        </div>
+
+                      </div>
+
+                      <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold">
+                        {payrollDocument ? "Uploaded" : "Pending"}
+                      </span>
+
+                    </div>
+
+                    {payrollDocument && (
+                      <div className="mt-3 truncate text-xs text-muted-foreground">
+                        {payrollDocument.document_name}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+
+                      <input
+                        id={`salary-slip-payroll-doc-${documentTypeSafe(
+                          requiredDocument.type
+                        )}`}
+                        type="file"
+                        accept=".pdf,image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.currentTarget.value = "";
+
+                          if (file) {
+                            void handlePayrollDocumentUpload(
+                              requiredDocument.type,
+                              file
+                            );
+                          }
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        disabled={
+                          uploadingPayrollDocument ===
+                          requiredDocument.type
+                        }
+                        onClick={() =>
+                          window.document
+                            .getElementById(
+                              `salary-slip-payroll-doc-${documentTypeSafe(
+                                requiredDocument.type
+                              )}`
+                            )
+                            ?.click()
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-bold transition hover:bg-muted disabled:opacity-50"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingPayrollDocument ===
+                        requiredDocument.type
+                          ? "Uploading..."
+                          : payrollDocument
+                            ? "Replace"
+                            : "Upload"}
+                      </button>
+
+                      {payrollDocument && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void openPayrollDocument(
+                              payrollDocument
+                            )
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-bold transition hover:bg-muted"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Open
+                        </button>
+                      )}
+
+                    </div>
+
+                  </div>
+
+                );
+
+              })}
+
+            </div>
+
+            {payrollDocumentMessage && (
+              <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3 text-sm">
+                {payrollDocumentMessage}
+              </div>
+            )}
+
+          </div>
+
+          <div className="mt-6">
+
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Current Salary Structure
+            </h3>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              Read-only on the employee dashboard. HR/Admin maintains this
+              structure in Employee Edit → Salary.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+              {[
+                [
+                  "Basic Salary",
+                  formatCurrency(
+                    Number(currentSalaryStructure?.basic_salary ?? 0)
+                  ),
+                ],
+                [
+                  "HRA",
+                  formatCurrency(
+                    Number(currentSalaryStructure?.hra ?? 0)
+                  ),
+                ],
+                [
+                  "Transport Allowance",
+                  formatCurrency(
+                    Number(
+                      currentSalaryStructure?.transport_allowance ?? 0
+                    )
+                  ),
+                ],
+                [
+                  "Medical Allowance",
+                  formatCurrency(
+                    Number(
+                      currentSalaryStructure?.medical_allowance ?? 0
+                    )
+                  ),
+                ],
+                [
+                  "Other Allowances",
+                  formatCurrency(
+                    Number(
+                      currentSalaryStructure?.other_allowances ?? 0
+                    )
+                  ),
+                ],
+                [
+                  "Tax Deduction",
+                  formatCurrency(
+                    Number(
+                      currentSalaryStructure?.tax_deduction ?? 0
+                    )
+                  ),
+                ],
+                [
+                  "PF Deduction",
+                  formatCurrency(
+                    Number(
+                      currentSalaryStructure?.pf_deduction ?? 0
+                    )
+                  ),
+                ],
+                [
+                  "Net Structure",
+                  formatCurrency(
+                    Number(currentSalaryStructure?.basic_salary ?? 0) +
+                    Number(currentSalaryStructure?.hra ?? 0) +
+                    Number(
+                      currentSalaryStructure?.transport_allowance ?? 0
+                    ) +
+                    Number(
+                      currentSalaryStructure?.medical_allowance ?? 0
+                    ) +
+                    Number(
+                      currentSalaryStructure?.other_allowances ?? 0
+                    ) -
+                    Number(currentSalaryStructure?.tax_deduction ?? 0) -
+                    Number(currentSalaryStructure?.pf_deduction ?? 0)
+                  ),
+                ],
+              ].map(([label, value]) => (
+
+                <div
+                  key={label}
+                  className="rounded-xl border border-border bg-background p-4"
+                >
+
+                  <p className="text-xs text-muted-foreground">
+                    {label}
+                  </p>
+
+                  <p className="mt-1 font-bold">
+                    {value}
+                  </p>
+
+                </div>
+
+              ))}
+
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+
+              <div className="rounded-xl border border-border bg-background p-4">
+
+                <p className="text-xs text-muted-foreground">
+                  Effective From
+                </p>
+
+                <p className="mt-1 text-sm font-semibold">
+                  {currentSalaryStructure?.effective_from
+                    ? new Date(
+                        currentSalaryStructure.effective_from
+                      ).toLocaleDateString("en-IN")
+                    : "Not assigned"}
+                </p>
+
+              </div>
+
+              <div className="rounded-xl border border-border bg-background p-4">
+
+                <p className="text-xs text-muted-foreground">
+                  Selected Slip LOP Days
+                </p>
+
+                <p className="mt-1 text-sm font-semibold">
+                  {selectedSlip
+                    ? `${selectedLopDays} day(s)`
+                    : "Open a salary slip to view LOP days"}
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
 
         {/* =====================================================
             SUMMARY
@@ -1852,6 +2720,178 @@ export default function EmployeeSalarySlips() {
 
                 <div className="mt-1 break-all text-sm text-muted-foreground">
                   {user?.email}
+                </div>
+
+              </div>
+
+              {/* PAYROLL / STATUTORY INFORMATION */}
+
+              <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
+
+                <div className="flex items-center gap-2">
+
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+
+                  <div>
+
+                    <p className="text-sm font-bold">
+                      Payroll &amp; Statutory Information
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      Same information maintained in Employee Edit → Salary.
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+
+                  {[
+                    ["UAN Number", payrollIdentity?.uan_number],
+                    ["Aadhaar Number", payrollIdentity?.aadhaar_number],
+                    ["PAN Number", payrollIdentity?.pan_number],
+                    ["ESI Number", payrollIdentity?.esi_number],
+                    [
+                      "Insurance Number",
+                      payrollIdentity?.insurance_number,
+                    ],
+                    ["Bank Name", payrollIdentity?.bank_name],
+                    [
+                      "Bank Account Number",
+                      payrollIdentity?.bank_account_number,
+                    ],
+                    ["IFSC Code", payrollIdentity?.ifsc_code],
+                  ].map(([label, value]) => (
+
+                    <div
+                      key={String(label)}
+                      className="rounded-lg border border-border bg-background p-3"
+                    >
+
+                      <p className="text-xs text-muted-foreground">
+                        {label}
+                      </p>
+
+                      <p className="mt-1 break-all text-sm font-semibold">
+                        {value || "—"}
+                      </p>
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+              </div>
+
+              {/* LOP DAYS FOR THIS SALARY SLIP */}
+
+              <div className="mt-5 rounded-xl border border-border bg-muted/30 p-4">
+
+                <div className="flex items-center justify-between gap-3">
+
+                  <div>
+
+                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                      LOP Days
+                    </p>
+
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Approved unpaid leave for this salary-slip month.
+                    </p>
+
+                  </div>
+
+                  <div className="text-xl font-black">
+                    {selectedLopDays}
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* CURRENT SALARY STRUCTURE */}
+
+              <div className="mt-5 rounded-xl border border-border bg-background p-4">
+
+                <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  Current Salary Structure
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+
+                  {[
+                    [
+                      "Basic Salary",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.basic_salary ?? selectedSlip.basic_salary ?? 0)
+                      ),
+                    ],
+                    [
+                      "HRA",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.hra ?? 0)
+                      ),
+                    ],
+                    [
+                      "Transport Allowance",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.transport_allowance ?? 0)
+                      ),
+                    ],
+                    [
+                      "Medical Allowance",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.medical_allowance ?? 0)
+                      ),
+                    ],
+                    [
+                      "Other Allowances",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.other_allowances ?? 0)
+                      ),
+                    ],
+                    [
+                      "Tax Deduction",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.tax_deduction ?? 0)
+                      ),
+                    ],
+                    [
+                      "PF Deduction",
+                      formatCurrency(
+                        Number(currentSalaryStructure?.pf_deduction ?? 0)
+                      ),
+                    ],
+                    [
+                      "Effective From",
+                      currentSalaryStructure?.effective_from
+                        ? new Date(
+                            currentSalaryStructure.effective_from
+                          ).toLocaleDateString("en-IN")
+                        : "—",
+                    ],
+                  ].map(([label, value]) => (
+
+                    <div
+                      key={label}
+                      className="rounded-lg border border-border bg-muted/20 p-3"
+                    >
+
+                      <p className="text-xs text-muted-foreground">
+                        {label}
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold">
+                        {value}
+                      </p>
+
+                    </div>
+
+                  ))}
+
                 </div>
 
               </div>

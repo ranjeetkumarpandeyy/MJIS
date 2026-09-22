@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, User, Mail, Phone, MapPin, Building2, Calendar, Briefcase, Save, Shield, FileText, Clock, Wallet, Files, Package, Star } from "lucide-react";
+import { Loader2, User, Mail, Phone, MapPin, Building2, Calendar, Briefcase, Save, Shield, FileText, Clock, Wallet, Files, Package, Star, Camera, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -79,6 +79,18 @@ const Profile = () => {
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [isEditing, setIsEditing] = useState(false);
+
+  // ============================================================
+  // SELF-SERVICE PROFILE PICTURE
+  // Employees can upload/replace only their own profile picture.
+  // The same URL is synchronized to employees.avatar_url so
+  // Admin / HR directory and employee view use the same image.
+  // ============================================================
+  const [isUploadingProfilePicture, setIsUploadingProfilePicture] =
+    useState(false);
+  const profilePictureInputRef =
+    useRef<HTMLInputElement | null>(null);
+
   const [formData, setFormData] = useState<ProfileForm>({
     phone: '',
     address: '',
@@ -221,6 +233,137 @@ const Profile = () => {
     },
   });
 
+  const handleProfilePictureChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    // Allow selecting the same file again after a failed/cancelled attempt.
+    event.target.value = "";
+
+    if (!file || !user?.id || !employee?.id) {
+      return;
+    }
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid image",
+        description:
+          "Please select a JPG, PNG, or WEBP profile picture.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const maxSizeBytes = 5 * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      toast({
+        title: "Image too large",
+        description:
+          "Profile picture must be 5 MB or smaller.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingProfilePicture(true);
+
+    try {
+      // One stable path per employee account means replacing a photo
+      // updates the same Storage object instead of creating duplicates.
+      const storagePath = `${user.id}/profile`;
+
+      const { error: uploadError } =
+        await supabase.storage
+          .from("employee-profile-pictures")
+          .upload(storagePath, file, {
+            cacheControl: "3600",
+            upsert: true,
+            contentType: file.type,
+          });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } =
+        supabase.storage
+          .from("employee-profile-pictures")
+          .getPublicUrl(storagePath);
+
+      const avatarUrl =
+        `${publicUrlData.publicUrl}?v=${Date.now()}`;
+
+      // Keep both existing avatar fields synchronized.
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          avatar_url: avatarUrl,
+        })
+        .eq("id", user.id);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const { error: employeeError } = await supabase
+        .from("employees")
+        .update({
+          avatar_url: avatarUrl,
+        })
+        .eq("id", employee.id);
+
+      if (employeeError) {
+        throw employeeError;
+      }
+
+      // Refresh every screen that reads the employee avatar.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["user-profile", user.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["my-profile", user.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["employees"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["employee-directory"],
+        }),
+      ]);
+
+      toast({
+        title: "Profile picture updated",
+        description:
+          "Your new profile picture is now visible in your profile and to authorised HR/Admin views.",
+      });
+    } catch (error) {
+      console.error(
+        "Profile picture upload error:",
+        error
+      );
+
+      toast({
+        title: "Upload failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to update your profile picture.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingProfilePicture(false);
+    }
+  };
+
   const handleSave = () => {
     updateProfileMutation.mutate(formData);
   };
@@ -309,10 +452,64 @@ const Profile = () => {
                 <Card className="md:col-span-1">
                   <CardContent className="pt-6">
                     <div className="flex flex-col items-center text-center">
-                      <Avatar className="h-24 w-24">
-                        <AvatarImage src={userProfile?.avatar_url || undefined} />
-                        <AvatarFallback className="text-2xl">{getUserInitials()}</AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar className="h-24 w-24">
+                          <AvatarImage src={userProfile?.avatar_url || undefined} />
+                          <AvatarFallback className="text-2xl">{getUserInitials()}</AvatarFallback>
+                        </Avatar>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            profilePictureInputRef.current?.click()
+                          }
+                          disabled={isUploadingProfilePicture}
+                          className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                          title="Upload or replace profile picture"
+                          aria-label="Upload or replace profile picture"
+                        >
+                          {isUploadingProfilePicture ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
+                        </button>
+
+                        <input
+                          ref={profilePictureInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={handleProfilePictureChange}
+                          disabled={isUploadingProfilePicture}
+                        />
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            profilePictureInputRef.current?.click()
+                          }
+                          disabled={isUploadingProfilePicture}
+                        >
+                          {isUploadingProfilePicture ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                          )}
+                          {userProfile?.avatar_url
+                            ? "Replace Photo"
+                            : "Upload Photo"}
+                        </Button>
+                      </div>
+
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        JPG, PNG or WEBP · Max 5 MB
+                      </p>
+
                       <h3 className="mt-4 text-xl font-semibold">
                         {employee.first_name} {employee.last_name}
                       </h3>

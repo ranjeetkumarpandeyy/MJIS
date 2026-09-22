@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,8 +25,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Employee } from "./EmployeeTable";
 import { Loader2, Hash, IndianRupee, History, ChevronDown, ChevronUp } from "lucide-react";
+import { FileCheck2, ShieldCheck, Upload, Eye, Trash2, LockKeyhole } from "lucide-react";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
   Collapsible,
@@ -83,6 +86,39 @@ interface SalaryFormData {
   effective_from: string;
 }
 
+interface PayrollIdentityFormData {
+  bank_name: string;
+  bank_account_number: string;
+  ifsc_code: string;
+  pan_number: string;
+  uan_number: string;
+  esi_number: string;
+  insurance_number: string;
+  aadhaar_number: string;
+}
+
+interface PayrollDocument {
+  id: string;
+  user_id: string;
+  employee_id: string | null;
+  document_type: string;
+  document_name: string;
+  storage_path: string;
+  created_at: string;
+}
+
+const REQUIRED_PAYROLL_DOCUMENTS = [
+  { type: "Aadhaar Card", hint: "Aadhaar / identity proof" },
+  { type: "PAN Card", hint: "PAN card copy" },
+  { type: "Bank Proof", hint: "Cancelled cheque / bank passbook / bank proof" },
+  { type: "Insurance Document", hint: "Insurance / ESIC / policy document" },
+  { type: "UAN Document", hint: "UAN card / EPFO document (if available)" },
+  { type: "ESI Document", hint: "ESI card / ESI document (if available)" },
+];
+
+const documentTypeSafe = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -126,6 +162,27 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
     effective_from: new Date().toISOString().split("T")[0],
   });
 
+  const [payrollIdentityForm, setPayrollIdentityForm] =
+    useState<PayrollIdentityFormData>({
+      bank_name: "",
+      bank_account_number: "",
+      ifsc_code: "",
+      pan_number: "",
+      uan_number: "",
+      esi_number: "",
+      insurance_number: "",
+      aadhaar_number: "",
+    });
+
+  const [savingPayrollIdentity, setSavingPayrollIdentity] =
+    useState(false);
+  const [payrollIdentityMessage, setPayrollIdentityMessage] =
+    useState("");
+  const [uploadingPayrollDocument, setUploadingPayrollDocument] =
+    useState<string | null>(null);
+  const [payrollDocumentMessage, setPayrollDocumentMessage] =
+    useState("");
+
   // Fetch salary structure for this employee
   const { data: salaryStructure, isLoading: isLoadingSalary } = useQuery({
     queryKey: ["employee-salary-structure", employee?.id],
@@ -156,6 +213,89 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
 
       if (error) throw error;
       return data || [];
+    },
+    enabled: open && !!employee?.id,
+  });
+
+
+  // ============================================================
+  // SHARED PAYROLL / KYC DATA
+  // The same payroll profile and documents are used by the
+  // employee salary-slip dashboard.
+  // ============================================================
+
+  const { data: payrollIdentity } = useQuery({
+    queryKey: ["employee-edit-payroll-identity", employee?.id],
+    queryFn: async () => {
+      if (!employee?.id) return null;
+
+      const { data, error } = await (supabase as any)
+        .from("employee_payroll_profiles")
+        .select(
+          "user_id, employee_id, bank_name, bank_account_number, ifsc_code, pan_number, uan_number, esi_number, insurance_number, aadhaar_number"
+        )
+        .eq("employee_id", employee.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!employee?.id,
+  });
+
+  const { data: payrollDocuments = [] } = useQuery({
+    queryKey: ["employee-edit-payroll-documents", employee?.id],
+    queryFn: async () => {
+      if (!employee?.id) return [];
+
+      const { data, error } = await (supabase as any)
+        .from("employee_payroll_documents")
+        .select(
+          "id, user_id, employee_id, document_type, document_name, storage_path, created_at"
+        )
+        .eq("employee_id", employee.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []) as PayrollDocument[];
+    },
+    enabled: open && !!employee?.id,
+  });
+
+  const { data: currentLopDays = 0 } = useQuery({
+    queryKey: ["employee-edit-current-lop-days", employee?.id],
+    queryFn: async () => {
+      if (!employee?.id) return 0;
+
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString()
+        .slice(0, 10);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        .toISOString()
+        .slice(0, 10);
+
+      const { data, error } = await supabase
+        .from("leave_requests")
+        .select(
+          "days_count, leave_type:leave_types!leave_requests_leave_type_id_fkey(is_paid)"
+        )
+        .eq("employee_id", employee.id)
+        .eq("status", "approved")
+        .gte("start_date", start)
+        .lte("end_date", end);
+
+      if (error) throw error;
+
+      return (data ?? []).reduce((sum, item) => {
+        const leaveType = item.leave_type as
+          | { is_paid?: boolean | null }
+          | null;
+
+        return leaveType?.is_paid === false
+          ? sum + Number(item.days_count ?? 0)
+          : sum;
+      }, 0);
     },
     enabled: open && !!employee?.id,
   });
@@ -191,6 +331,195 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
     }
   }, [salaryStructure]);
 
+
+  useEffect(() => {
+    setPayrollIdentityForm({
+      bank_name: payrollIdentity?.bank_name ?? "",
+      bank_account_number: payrollIdentity?.bank_account_number ?? "",
+      ifsc_code: payrollIdentity?.ifsc_code ?? "",
+      pan_number: payrollIdentity?.pan_number ?? "",
+      uan_number: payrollIdentity?.uan_number ?? "",
+      esi_number: payrollIdentity?.esi_number ?? "",
+      insurance_number: payrollIdentity?.insurance_number ?? "",
+      aadhaar_number: payrollIdentity?.aadhaar_number ?? "",
+    });
+  }, [payrollIdentity]);
+
+  const savePayrollIdentity = async () => {
+    if (!employee?.id || !employeeDetails?.user_id) {
+      setPayrollIdentityMessage(
+        "This employee is not linked to a portal account yet."
+      );
+      return;
+    }
+
+    setSavingPayrollIdentity(true);
+    setPayrollIdentityMessage("");
+
+    try {
+      const { error } = await (supabase as any)
+        .from("employee_payroll_profiles")
+        .upsert(
+          {
+            user_id: employeeDetails.user_id,
+            employee_id: employee.id,
+            ...payrollIdentityForm,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({
+        queryKey: ["employee-edit-payroll-identity", employee.id],
+      });
+
+      setPayrollIdentityMessage(
+        "Payroll and statutory details saved successfully."
+      );
+    } catch (saveError) {
+      console.error("Payroll identity save error:", saveError);
+      setPayrollIdentityMessage(
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save payroll details."
+      );
+    } finally {
+      setSavingPayrollIdentity(false);
+    }
+  };
+
+  const payrollDocumentSlug = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const handlePayrollDocumentUpload = async (
+    documentType: string,
+    file: File
+  ) => {
+    if (!employeeDetails?.user_id || !employee?.id) {
+      setPayrollDocumentMessage(
+        "This employee is not linked to a portal account yet."
+      );
+      return;
+    }
+
+    setUploadingPayrollDocument(documentType);
+    setPayrollDocumentMessage("");
+
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      const storagePath = `${employeeDetails.user_id}/${payrollDocumentSlug(
+        documentType
+      )}/current`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("employee-payroll-documents")
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { error: documentError } = await (supabase as any)
+        .from("employee_payroll_documents")
+        .upsert(
+          {
+            user_id: employeeDetails.user_id,
+            employee_id: employee.id,
+            document_type: documentType,
+            document_name: file.name,
+            storage_path: storagePath,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,document_type" }
+        );
+
+      if (documentError) throw documentError;
+
+      queryClient.invalidateQueries({
+        queryKey: ["employee-edit-payroll-documents", employee.id],
+      });
+
+      setPayrollDocumentMessage(
+        `${documentType} uploaded/replaced successfully.`
+      );
+    } catch (uploadError) {
+      console.error("Payroll document upload error:", uploadError);
+      setPayrollDocumentMessage(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Unable to upload document."
+      );
+    } finally {
+      setUploadingPayrollDocument(null);
+    }
+  };
+
+  const openPayrollDocument = async (storagePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("employee-payroll-documents")
+        .createSignedUrl(storagePath, 60 * 10);
+
+      if (error) throw error;
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (openError) {
+      console.error("Payroll document open error:", openError);
+      setPayrollDocumentMessage(
+        openError instanceof Error
+          ? openError.message
+          : "Unable to open document."
+      );
+    }
+  };
+
+  const deletePayrollDocument = async (payrollDocument: PayrollDocument) => {
+    const confirmed = window.confirm(
+      `Delete ${payrollDocument.document_type}?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { error: deleteRowError } = await (supabase as any)
+        .from("employee_payroll_documents")
+        .delete()
+        .eq("id", payrollDocument.id);
+
+      if (deleteRowError) throw deleteRowError;
+
+      const { error: storageDeleteError } = await supabase.storage
+        .from("employee-payroll-documents")
+        .remove([payrollDocument.storage_path]);
+
+      if (storageDeleteError) throw storageDeleteError;
+
+      queryClient.invalidateQueries({
+        queryKey: ["employee-edit-payroll-documents", employee?.id],
+      });
+
+      setPayrollDocumentMessage(
+        `${payrollDocument.document_type} deleted successfully.`
+      );
+    } catch (deleteError) {
+      console.error("Payroll document delete error:", deleteError);
+      setPayrollDocumentMessage(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete document."
+      );
+    }
+  };
+
   // Fetch full employee details when dialog opens
   const { data: employeeDetails, isLoading: isLoadingDetails } = useQuery({
     queryKey: ["employee-details", employee?.id],
@@ -200,6 +529,7 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
         .from("employees")
         .select(`
           id,
+          user_id,
           employee_code,
           first_name,
           last_name,
@@ -387,7 +717,7 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.employee_code || !isValidEmployeeCode(formData.employee_code)) {
-      toast.error("Employee code must be in format ACQ001");
+      toast.error("Employee number must use the MJIS format, for example MJIS001");
       return;
     }
     if (!formData.first_name || !formData.last_name || !formData.email || !formData.designation) {
@@ -406,6 +736,24 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
       // Update salary structure if basic salary is provided
       if (salaryData.basic_salary) {
         await salaryMutation.mutateAsync(salaryData);
+      }
+
+      // Save the same payroll / statutory profile used by the
+      // employee salary-slip dashboard.
+      if (employeeDetails?.user_id) {
+        const { error: payrollError } = await (supabase as any)
+          .from("employee_payroll_profiles")
+          .upsert(
+            {
+              user_id: employeeDetails.user_id,
+              employee_id: employee.id,
+              ...payrollIdentityForm,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
+
+        if (payrollError) throw payrollError;
       }
 
       // Save leave eligibility selections
@@ -473,7 +821,11 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
                       onChange={(e) => setFormData({ ...formData, employee_code: e.target.value.toUpperCase() })}
                       className="pl-9 font-mono"
                       required
+                      readOnly
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Unique MJIS employee number. Generated automatically and kept stable.
+                    </p>
                   </div>
                 </div>
                 
@@ -911,6 +1263,234 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
                       </div>
                     </div>
 
+                    {/* ============================================================
+                        SHARED PAYROLL / STATUTORY INFORMATION
+                        Same source of truth as Employee Salary Slips.
+                    ============================================================ */}
+                    <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-primary" />
+                        <div>
+                          <h4 className="font-semibold">Payroll & Statutory Information</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Same UAN, Aadhaar, PAN, ESI, insurance and bank details
+                            shown on the employee salary-slip dashboard.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {[
+                          ["UAN Number", "uan_number", "Enter UAN number"],
+                          ["Aadhaar Number", "aadhaar_number", "Enter Aadhaar number"],
+                          ["PAN Number", "pan_number", "Enter PAN number"],
+                          ["ESI Number", "esi_number", "Enter ESI number"],
+                          ["Insurance Number", "insurance_number", "Enter insurance number"],
+                          ["Bank Name", "bank_name", "Enter bank name"],
+                          ["Bank Account Number", "bank_account_number", "Enter bank account number"],
+                          ["IFSC Code", "ifsc_code", "Enter IFSC code"],
+                        ].map(([label, key, placeholder]) => (
+                          <div key={key} className="space-y-2">
+                            <Label htmlFor={`employee-payroll-${key}`}>{label}</Label>
+                            <Input
+                              id={`employee-payroll-${key}`}
+                              value={
+                                payrollIdentityForm[
+                                  key as keyof PayrollIdentityFormData
+                                ]
+                              }
+                              onChange={(e) =>
+                                setPayrollIdentityForm((prev) => ({
+                                  ...prev,
+                                  [key]: e.target.value,
+                                }))
+                              }
+                              placeholder={placeholder}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
+                        <div className="flex items-center gap-2">
+                          <LockKeyhole className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <div className="text-sm font-medium">
+                              Current Month LOP Days
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Approved unpaid leave for the current month.
+                            </div>
+                          </div>
+                        </div>
+
+                        <Badge variant="secondary">
+                          {currentLopDays} day{currentLopDays === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={() => void savePayrollIdentity()}
+                        disabled={savingPayrollIdentity}
+                        className="gap-2"
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        {savingPayrollIdentity
+                          ? "Saving..."
+                          : "Save Payroll / KYC Details"}
+                      </Button>
+
+                      {payrollIdentityMessage && (
+                        <div className="rounded-lg border bg-background p-3 text-sm">
+                          {payrollIdentityMessage}
+                        </div>
+                      )}
+
+                      <Separator />
+
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <FileCheck2 className="h-5 w-5 text-primary" />
+                          <div>
+                            <h4 className="font-semibold">Payroll / KYC Documents</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Admin/HR can upload, replace, open or delete documents.
+                              Employees can replace but cannot delete.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {REQUIRED_PAYROLL_DOCUMENTS.map((requiredDocument) => {
+                            const payrollDocument = payrollDocuments.find(
+                              (item) =>
+                                item.document_type === requiredDocument.type
+                            );
+
+                            return (
+                              <div
+                                key={requiredDocument.type}
+                                className="rounded-lg border bg-background p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="font-medium">
+                                      {requiredDocument.type}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {requiredDocument.hint}
+                                    </div>
+                                  </div>
+
+                                  <Badge
+                                    variant={
+                                      payrollDocument ? "default" : "secondary"
+                                    }
+                                  >
+                                    {payrollDocument ? "Uploaded" : "Pending"}
+                                  </Badge>
+                                </div>
+
+                                {payrollDocument && (
+                                  <div className="mt-2 truncate text-xs text-muted-foreground">
+                                    {payrollDocument.document_name}
+                                  </div>
+                                )}
+
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <input
+                                    id={`employee-edit-payroll-doc-${documentTypeSafe(
+                                      requiredDocument.type
+                                    )}`}
+                                    type="file"
+                                    accept=".pdf,image/png,image/jpeg,image/webp"
+                                    className="hidden"
+                                    onChange={(event) => {
+                                      const file = event.target.files?.[0];
+                                      event.currentTarget.value = "";
+                                      if (file) {
+                                        void handlePayrollDocumentUpload(
+                                          requiredDocument.type,
+                                          file
+                                        );
+                                      }
+                                    }}
+                                  />
+
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      uploadingPayrollDocument ===
+                                      requiredDocument.type
+                                    }
+                                    onClick={() =>
+                                      window.document
+                                        .getElementById(
+                                          `employee-edit-payroll-doc-${documentTypeSafe(
+                                            requiredDocument.type
+                                          )}`
+                                        )
+                                        ?.click()
+                                    }
+                                  >
+                                    <Upload className="mr-1 h-4 w-4" />
+                                    {uploadingPayrollDocument ===
+                                    requiredDocument.type
+                                      ? "Uploading..."
+                                      : payrollDocument
+                                        ? "Replace"
+                                        : "Upload"}
+                                  </Button>
+
+                                  {payrollDocument && (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          void openPayrollDocument(
+                                            payrollDocument.storage_path
+                                          )
+                                        }
+                                      >
+                                        <Eye className="mr-1 h-4 w-4" />
+                                        Open
+                                      </Button>
+
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-destructive"
+                                        onClick={() =>
+                                          void deletePayrollDocument(
+                                            payrollDocument
+                                          )
+                                        }
+                                      >
+                                        <Trash2 className="mr-1 h-4 w-4" />
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {payrollDocumentMessage && (
+                          <div className="rounded-lg border bg-background p-3 text-sm">
+                            {payrollDocumentMessage}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Salary History Section */}
                     {salaryHistory.length > 0 && (
                       <Collapsible open={showHistory} onOpenChange={setShowHistory}>
@@ -1012,8 +1592,8 @@ export function EmployeeEditDialog({ employee, open, onOpenChange }: EmployeeEdi
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateMutation.isPending || salaryMutation.isPending}>
-                {(updateMutation.isPending || salaryMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={updateMutation.isPending || salaryMutation.isPending || savingPayrollIdentity}>
+                {(updateMutation.isPending || salaryMutation.isPending || savingPayrollIdentity) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
             </DialogFooter>
