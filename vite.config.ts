@@ -17,7 +17,6 @@ function versionUpdatePlugin(): Plugin {
           console.log("📦 Updating APP_VERSION from git tags...");
           execSync(`bash "${scriptPath}"`, { stdio: "inherit" });
         } catch (error) {
-          // Non-fatal: continue build even if version update fails
           console.warn("⚠️ Version update skipped:", (error as Error).message);
         }
       }
@@ -36,9 +35,12 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     mode === "production" && versionUpdatePlugin(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "autoUpdate",          // ✅ Auto update SW
       includeAssets: ["favicon.ico", "favicon.svg", "pwa-192x192.png", "pwa-512x512.png"],
       workbox: {
+        skipWaiting: true,                 // ✅ New SW activates immediately
+        clientsClaim: true,                // ✅ SW takes control of all tabs
+        cleanupOutdatedCaches: true,       // ✅ Removes old caches automatically
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
