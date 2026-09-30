@@ -110,19 +110,40 @@ const PageFallback = () => (
 
 const App = () => {
 
-  // ✅ PWA AUTO UPDATE - Notifies all users when new version is deployed
+  // Keep deployed PWA clients in sync without requiring a hard refresh.
+  // We check for a newer service worker as soon as the app starts, activate it,
+  // and reload the current tab when a new build is available.
   useEffect(() => {
+    let updateTimer: ReturnType<typeof setInterval> | undefined;
+
     const updateSW = registerSW({
+      immediate: true,
+      onRegisteredSW(_swUrl, registration) {
+        if (!registration) return;
+
+        // Force an immediate update check on normal page loads.
+        void registration.update();
+
+        // Keep long-lived tabs reasonably fresh as well.
+        updateTimer = setInterval(() => {
+          if (navigator.onLine && !registration.installing) {
+            void registration.update();
+          }
+        }, 60 * 60 * 1000);
+      },
       onNeedRefresh() {
-        const update = confirm(
-          "🚀 New version of MJIS is available! Click OK to update now."
-        );
-        if (update) updateSW(true);
+        // The service worker uses skipWaiting + clientsClaim, so reload
+        // immediately to pick up the newly deployed hashed assets.
+        updateSW(true);
       },
       onOfflineReady() {
         console.log("✅ MJIS is ready to work offline");
       },
     });
+
+    return () => {
+      if (updateTimer) clearInterval(updateTimer);
+    };
   }, []);
 
   return (
