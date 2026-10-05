@@ -1,6 +1,14 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
+import heroBg from "@/assets/hero-bg.jpg";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "motion/react";
+import {
+  motion,
+  AnimatePresence,
+  useScroll,
+  useTransform,
+  useMotionValue,
+  useSpring,
+} from "motion/react";
 import {
   ArrowRight,
   Building2,
@@ -176,6 +184,40 @@ const Landing = () => {
   const [loginTransitionOpen, setLoginTransitionOpen] = useState(false);
 
   const navigate = useNavigate();
+    // ---------- HERO PARALLAX + 3D MOTION ----------
+  const heroRef = useRef<HTMLElement | null>(null);
+
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+
+  // Scroll: photo moves slower than the page and zooms in slightly
+  const bgScrollY = useTransform(scrollYProgress, [0, 1], ["0%", "22%"]);
+  const bgScrollScale = useTransform(scrollYProgress, [0, 1], [1.15, 1.35]);
+  const contentScrollY = useTransform(scrollYProgress, [0, 1], ["0%", "-10%"]);
+
+  // Mouse: smooth 3D tilt and shift
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothX = useSpring(mouseX, { stiffness: 60, damping: 20 });
+  const smoothY = useSpring(mouseY, { stiffness: 60, damping: 20 });
+
+  const bgShiftX = useTransform(smoothX, [-0.5, 0.5], [-28, 28]);
+  const bgShiftY = useTransform(smoothY, [-0.5, 0.5], [-18, 18]);
+  const bgRotateY = useTransform(smoothX, [-0.5, 0.5], [-3, 3]);
+  const bgRotateX = useTransform(smoothY, [-0.5, 0.5], [3, -3]);
+
+  const handleHeroMouseMove = (event: MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    mouseX.set((event.clientX - rect.left) / rect.width - 0.5);
+    mouseY.set((event.clientY - rect.top) / rect.height - 0.5);
+  };
+
+  const handleHeroMouseLeave = () => {
+    mouseX.set(0);
+    mouseY.set(0);
+  };
 
   const handleLoginOpen = () => {
     if (loginTransitionOpen) return;
@@ -937,16 +979,48 @@ const Landing = () => {
           HERO
       ====================================================== */}
 
-      <motion.section
+            <motion.section
         id="home"
-        className="relative overflow-hidden bg-slate-950"
+        ref={heroRef}
+        onMouseMove={handleHeroMouseMove}
+        onMouseLeave={handleHeroMouseLeave}
+        className="relative min-h-[90vh] overflow-hidden bg-slate-950"
+        style={{ perspective: 1400 }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.7 }}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(249,115,22,0.28),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(234,88,12,0.16),transparent_30%)]" />
+        {/* Background photo */}
+                {/* Slow idle zoom (keeps the photo alive on its own) */}
+        <motion.div
+          className="absolute inset-0"
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+        >
+          {/* Scroll parallax + mouse 3D tilt */}
+          <motion.img
+            src={heroBg}
+            alt="Industrial workers on site"
+            className="absolute inset-0 h-full w-full object-cover will-change-transform"
+            style={{
+              y: bgScrollY,
+              scale: bgScrollScale,
+              x: bgShiftX,
+              translateY: bgShiftY,
+              rotateX: bgRotateX,
+              rotateY: bgRotateY,
+              transformPerspective: 1400,
+            }}
+          />
+        </motion.div>
 
-        <div className="relative mx-auto grid max-w-7xl gap-14 px-5 py-24 lg:grid-cols-[1.25fr_0.75fr] lg:px-8 lg:py-32">
+        {/* Dark overlay so text stays readable */}
+        <div className="absolute inset-0    bg-gradient-to-r from-[#050816]/95 via-[#050816]/55 to-transparent" />
+
+        {/* Soft orange glow (kept from your old design) */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(249,115,22,0.22),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(234,88,12,0.12),transparent_30%)]" />
+
+        <div className="relative z-10 mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:px-8 lg:py-24">
           <motion.div
             className="flex flex-col justify-center"
             initial={{ opacity: 0, x: -36 }}
@@ -965,7 +1039,7 @@ const Landing = () => {
               </span>
             </h1>
 
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-200">
               MAA JANKI INDUSTRIAL SERVICES provides industrial painting,
               abrasive blasting, surface preparation, fabrication,
               scaffolding and manpower solutions for demanding project
@@ -995,7 +1069,7 @@ const Landing = () => {
               </motion.a>
             </div>
 
-            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-4 text-sm text-slate-400">
+            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-4 text-sm text-slate-300">
               <span className="flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-orange-500" />
                 Skilled Workforce
@@ -1014,7 +1088,7 @@ const Landing = () => {
           </motion.div>
 
           <motion.div
-            className="grid gap-4"
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
             initial={{ opacity: 0, x: 36 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.65, delay: 0.28, ease: [0.16, 1, 0.3, 1] }}
@@ -1043,10 +1117,10 @@ const Landing = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, delay: 0.35 }}
                 whileHover={{ y: -7, rotateX: 4, rotateY: -4, scale: 1.015 }}
-                className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur"
+                className="rounded-2xl border border-white/20 bg-slate-950/60 p-4"
                 style={{ transformPerspective: 1000 }}
               >
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-400">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/20 text-orange-400">
                   <CheckCircle2 size={20} />
                 </div>
 
@@ -1054,7 +1128,7 @@ const Landing = () => {
                   {title}
                 </h3>
 
-                <p className="mt-2 text-sm leading-6 text-slate-400">
+                <p className="mt-2 text-sm leading-6 text-slate-200">
                   {description}
                 </p>
               </motion.div>
