@@ -10,7 +10,7 @@ help:
 	@echo "CoreHR Hub - Development Commands"
 	@echo ""
 	@echo "Docker Commands:"
-	@echo "  make up              - Start all services in detached mode"
+	@echo "  make up              - Start all services in detachled mode"
 	@echo "  make down            - Stop and remove all containers"
 	@echo "  make stop            - Stop all containers (keep containers)"
 	@echo "  make restart         - Restart all services"

@@ -11,22 +11,34 @@ import {
 } from "motion/react";
 import {
   ArrowRight,
+  Award,
+  Bot,
+  Briefcase,
   Building2,
   CheckCircle2,
   ChevronRight,
+  Clock,
   ExternalLink,
   FileCheck2,
   FileImage,
+  FileText,
+  Globe,
   HardHat,
+  KeyRound,
   Mail,
   MapPin,
   Menu,
+  MessageCircle,
   Phone,
+  Send,
   ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
+  UserCog,
   Users,
+  Wind,
+  Wrench,
   X,
 } from "lucide-react";
 
@@ -108,6 +120,95 @@ const INDUSTRIES = [
   "Industrial Maintenance",
 ];
 
+const WHATSAPP_NUMBER = "919296073483";
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+  "Hello MAA JANKI Industrial Services, I would like to enquire about your services."
+)}`;
+
+// Sub-types shown on service cards AND in the enquiry form (keyed by service title)
+const SERVICE_TYPES: Record<string, string[]> = {
+  "Abrasive / Grit Blasting / Sand Blasting": [
+    "Grit / Abrasive Blasting",
+    "Sand Blasting",
+    "Shot Blasting",
+  ],
+  "Industrial Painting": [
+    "Airless Painting",
+    "Spray Painting",
+    "Brush / Roller",
+    "Epoxy",
+    "PU",
+    "Protective Coating",
+  ],
+  Scaffolding: [
+    "Erection",
+    "Dismantling",
+    "Industrial Scaffolding",
+    "Painting / Blasting Access",
+    "Maintenance / Shutdown Support",
+  ],
+  "Metalizing Service": ["Zinc", "Aluminium", "Thermal Spray"],
+  "Equipment Rental": ["Air Compressor 40 HP", "Scaffolding", "Painting Tools"],
+};
+
+// Rental items. Photos reuse the Service Photo Manager (same table, key = item.key)
+const RENTAL_ITEMS = [
+  {
+    key: "rental-air-compressor",
+    title: "Air Compressor 40 HP",
+    description:
+      "Heavy-duty 40 HP air compressor for blasting and painting jobs.",
+    icon: Wind,
+  },
+  {
+    key: "rental-scaffolding",
+    title: "Scaffolding",
+    description:
+      "Industrial scaffolding material available on rental for project duration.",
+    icon: Building2,
+  },
+  {
+    key: "rental-painting-tools",
+    title: "Painting Tools",
+    description:
+      "Airless sprayers, spray guns, rollers and painting equipment on rental.",
+    icon: Wrench,
+  },
+];
+
+const MEDIA_ITEMS = [...SERVICES, ...RENTAL_ITEMS];
+
+const WHY_CHOOSE_US = [
+  { title: "Industrial Experience", icon: Briefcase },
+  { title: "Skilled Workforce", icon: Users },
+  { title: "Safety-Focused Execution", icon: ShieldCheck },
+  { title: "Quality Work", icon: Award },
+  { title: "Timely Mobilisation", icon: Clock },
+  { title: "Pan-India Service", icon: Globe },
+  { title: "Professional Documentation", icon: FileText },
+  { title: "Competitive Proposal", icon: FileCheck2 },
+  { title: "Client-Focused Service", icon: CheckCircle2 },
+];
+
+const USER_ACCESS = [
+  { role: "Owner", access: "Full access", icon: KeyRound },
+  {
+    role: "HR / Admin",
+    access: "Employee + Joining + Attendance",
+    icon: UserCog,
+  },
+  {
+    role: "Site Supervisor",
+    access: "Assigned Site Attendance / Manpower",
+    icon: HardHat,
+  },
+  {
+    role: "Employee",
+    access: "Own Profile + Attendance + Leave + Salary Slip",
+    icon: Users,
+  },
+];
+
 const SERVICE_MEDIA_BUCKET = "mjis-service-media";
 const PROJECT_MEDIA_BUCKET = "mjis-project-media";
 
@@ -157,6 +258,296 @@ function makeReference(prefix: string) {
   return `${prefix}-${timestamp}-${random}`;
 }
 
+// =====================================================
+// MJIS AI ASSISTANT
+// Calls the Supabase Edge Function "mjis-ai" (real AI).
+// If the function is not deployed / fails, it falls back to
+// built-in answers so the chat never looks broken.
+// =====================================================
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
+const AI_SUGGESTIONS = [
+  "What services do you offer?",
+  "Equipment rental details",
+  "How do I get a quote?",
+  "Contact details",
+];
+
+function localAnswer(question: string): string {
+  const q = question.toLowerCase();
+  // Whole-word matching: short words must match exactly ("hi" will not match "things")
+  const tokens = q.split(/[^a-z0-9]+/);
+  const has = (...words: string[]) =>
+    words.some((word) =>
+      word.includes(" ")
+        ? q.includes(word)
+        : word.length <= 3
+        ? tokens.includes(word)
+        : tokens.some((token) => token.startsWith(word))
+    );
+
+  if (has("rent", "compressor", "equipment", "tools")) {
+    return `We offer equipment on rental: ${RENTAL_ITEMS.map((item) => item.title).join(
+      ", "
+    )}. Tap "Request Rental Quote" in the Rental section, or WhatsApp us on +91 9296073483.`;
+  }
+
+  if (has("blast", "grit", "sand", "shot")) {
+    return `Blasting services: ${SERVICE_TYPES["Abrasive / Grit Blasting / Sand Blasting"].join(
+      ", "
+    )}. Use the Work Enquiry form to request a quote.`;
+  }
+
+  if (has("paint", "epoxy", "coating", "spray", "airless")) {
+    return `Painting services: ${SERVICE_TYPES["Industrial Painting"].join(
+      ", "
+    )}. Use the Work Enquiry form to request a quote.`;
+  }
+
+  if (has("scaffold")) {
+    return `Scaffolding services: ${SERVICE_TYPES["Scaffolding"].join(
+      ", "
+    )}. Also available on rental.`;
+  }
+
+  if (has("metaliz", "metalis", "zinc", "alumin", "thermal")) {
+    return `Metalizing services: ${SERVICE_TYPES["Metalizing Service"].join(
+      ", "
+    )} for corrosion protection of industrial surfaces.`;
+  }
+
+  if (has("service", "offer", "what do you do", "work")) {
+    return `Our services: ${SERVICES.map((service) => service.title).join(
+      "; "
+    )}. We also provide Equipment Rental.`;
+  }
+
+  if (has("quote", "enquiry", "inquiry", "price", "cost", "budget")) {
+    return "Fill the Work Enquiry form (Get a Quote button at the top) with your project details and our team will contact you. For a quicker reply, WhatsApp us on +91 9296073483.";
+  }
+
+  if (has("contact", "phone", "call", "email", "mail", "address", "office", "whatsapp", "location")) {
+    return "Phone/WhatsApp: +91 9296073483. Email: info@mjis.in. Office: Near Hinoo More, Ranchi, Jharkhand - 834002. 2nd address: Koahi Chowk, Muzaffarpur, Bihar - 843117.";
+  }
+
+  if (has("job", "career", "apply", "hiring", "vacancy", "work with")) {
+    return "Go to the Careers section and submit the Job Application form with your trade, experience and contact details. You will get an Application No. after submitting.";
+  }
+
+  if (has("login", "hrms", "attendance", "salary", "leave", "access", "role")) {
+    return "HRMS access: Owner has full access; HR / Admin manages employees, joining and attendance; Site Supervisor handles assigned site attendance and manpower; Employees see their own profile, attendance, leave and salary slip. Use the Login button to sign in.";
+  }
+
+  if (has("why", "experience", "safety", "pan india", "quality")) {
+    return `Why choose us: ${WHY_CHOOSE_US.map((item) => item.title).join(", ")}.`;
+  }
+
+  if (has("hello", "hi", "hey", "namaste")) {
+    return "Hello! I'm MJIS AI. Ask me about our services, equipment rental, quotes, careers or contact details.";
+  }
+
+  return "";
+}
+
+const MjisAiAssistant = () => {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Hello! I'm MJIS AI, the assistant of MAA JANKI Industrial Services. Ask me about our services, equipment rental, quotes or careers.",
+    },
+  ]);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, loading, open]);
+
+  async function sendMessage(text: string) {
+    const question = text.trim().slice(0, 500);
+    if (!question || loading) return;
+
+    const next: ChatMessage[] = [
+      ...messages,
+      { role: "user", content: question },
+    ];
+
+    setMessages(next);
+    setInput("");
+    setLoading(true);
+
+    let reply = "";
+
+    try {
+      const { data, error } = await supabase.functions.invoke("mjis-ai", {
+        body: { messages: next.slice(-10) },
+      });
+
+      if (error) throw error;
+
+      reply = typeof data?.reply === "string" ? data.reply.trim() : "";
+    } catch (error) {
+      console.error("MJIS AI error:", error);
+    }
+
+    if (!reply) reply = localAnswer(question) || "MJIS AI could not reach the AI service right now. Please try again in a moment, or WhatsApp us on +91 9296073483.";
+
+    setMessages([...next, { role: "assistant", content: reply }]);
+    setLoading(false);
+  }
+
+  return (
+    <>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-x-3 bottom-44 z-[70] flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl sm:inset-x-auto sm:right-5 sm:w-[24rem]"
+            style={{ height: "min(32rem, calc(100vh - 12rem))" }}
+          >
+            <div className="flex items-center justify-between gap-3 bg-slate-950 px-5 py-4 text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-600">
+                  <Bot size={22} />
+                </div>
+
+                <div>
+                  <div className="font-black leading-none">MJIS AI</div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    MAA JANKI Industrial Services
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Close MJIS AI"
+                onClick={() => setOpen(false)}
+                className="rounded-lg p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div
+              ref={listRef}
+              className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4"
+            >
+              {messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${
+                    message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-6 ${
+                      message.role === "user"
+                        ? "bg-orange-600 text-white"
+                        : "border border-slate-200 bg-white text-slate-800"
+                    }`}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-500">
+                    MJIS AI is typing...
+                  </div>
+                </div>
+              )}
+
+              {messages.length === 1 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {AI_SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => void sendMessage(suggestion)}
+                      className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-700 transition hover:bg-orange-100"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 border-t border-slate-200 bg-white px-4 pt-2 text-xs font-bold">
+              <a
+                href="#enquiry"
+                onClick={() => setOpen(false)}
+                className="text-orange-600"
+              >
+                Get a Quote
+              </a>
+
+              <a
+                href={WHATSAPP_LINK}
+                target="_blank"
+                rel="noreferrer"
+                className="text-green-600"
+              >
+                WhatsApp us
+              </a>
+            </div>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void sendMessage(input);
+              }}
+              className="flex items-center gap-2 bg-white px-4 pb-4 pt-2"
+            >
+              <input
+                className={inputClass()}
+                placeholder="Ask MJIS AI..."
+                maxLength={500}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+              />
+
+              <button
+                type="submit"
+                aria-label="Send message"
+                disabled={loading || !input.trim()}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-600 text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send size={18} />
+              </button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        type="button"
+        aria-label="Open MJIS AI assistant"
+        onClick={() => setOpen((value) => !value)}
+        whileHover={{ scale: 1.05, y: -2 }}
+        whileTap={{ scale: 0.96 }}
+        className="fixed bottom-24 right-5 z-[60] inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-slate-950/30 ring-2 ring-orange-500 transition hover:bg-slate-900"
+      >
+        {open ? <X size={20} /> : <Sparkles size={20} className="text-orange-400" />}
+        MJIS AI
+      </motion.button>
+    </>
+  );
+};
+
 const Landing = () => {
   const { user } = useAuth();
 
@@ -184,7 +575,59 @@ const Landing = () => {
   const [loginTransitionOpen, setLoginTransitionOpen] = useState(false);
 
   const navigate = useNavigate();
-    // ---------- HERO PARALLAX + 3D MOTION ----------
+
+  // ---------- MOBILE DETECTION (phones + tablets below 1024px) ----------
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // ---------- SMOOTH SCROLL + 3D ARRIVAL FOR EVERY #anchor LINK/BUTTON ----------
+  useEffect(() => {
+    const onClick = (event: Event) => {
+      const link = (event.target as HTMLElement | null)?.closest?.(
+        'a[href^="#"]'
+      ) as HTMLAnchorElement | null;
+
+      const hash = link?.getAttribute("href");
+      if (!link || !hash || hash.length < 2) return;
+
+      const target = document.querySelector(hash) as HTMLElement | null;
+      if (!target) return;
+
+      event.preventDefault();
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.history.replaceState(null, "", hash);
+
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        target.animate(
+          [
+            {
+              opacity: 0.35,
+              transform:
+                "perspective(1200px) rotateX(8deg) translateY(60px) scale(0.96)",
+            },
+            {
+              opacity: 1,
+              transform:
+                "perspective(1200px) rotateX(0deg) translateY(0) scale(1)",
+            },
+          ],
+          { duration: 900, delay: 250, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
+        );
+      }
+    };
+
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
+  // ---------- HERO PARALLAX + 3D MOTION ----------
   const heroRef = useRef<HTMLElement | null>(null);
 
   const { scrollYProgress } = useScroll({
@@ -266,6 +709,7 @@ const Landing = () => {
     location: "",
     industry: "",
     service: "",
+    service_type: "",
     duration: "",
     manpower_required: "",
     start_date: "",
@@ -350,6 +794,19 @@ const Landing = () => {
     };
   }, [user]);
 
+  // Pre-fills the enquiry form for an equipment rental and scrolls to it
+  function requestRentalQuote(itemTitle?: string) {
+    setEnquiryForm((form) => ({
+      ...form,
+      service: "Equipment Rental",
+      service_type: itemTitle ?? "",
+    }));
+
+    document
+      .getElementById("enquiry")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function uploadSiteFile(
     bucket: string,
     path: string,
@@ -378,7 +835,7 @@ const Landing = () => {
     setServiceUploadMessage("");
 
     try {
-      const service = SERVICES.find((item) => item.key === serviceUploadKey);
+      const service = MEDIA_ITEMS.find((item) => item.key === serviceUploadKey);
       if (!service) throw new Error("Service not found.");
 
       const extension = serviceUploadFile.name.split(".").pop() || "jpg";
@@ -668,7 +1125,16 @@ const Landing = () => {
           ? Number(enquiryForm.budget)
           : null,
 
-        details: enquiryForm.details.trim() || null,
+        // Service type is saved inside details, so no database change is needed
+        details:
+          [
+            enquiryForm.service_type
+              ? `Service Type: ${enquiryForm.service_type}`
+              : "",
+            enquiryForm.details.trim(),
+          ]
+            .filter(Boolean)
+            .join("\n") || null,
 
         status: "new",
       });
@@ -690,6 +1156,7 @@ const Landing = () => {
         location: "",
         industry: "",
         service: "",
+        service_type: "",
         duration: "",
         manpower_required: "",
         start_date: "",
@@ -826,79 +1293,53 @@ const Landing = () => {
       ====================================================== */}
 
       <motion.header
-        className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur"
+        className="absolute inset-x-0 top-0 z-50 bg-gradient-to-b from-slate-950/60 via-slate-950/20 to-transparent lg:from-slate-950/85 lg:via-slate-950/50"
         initial={{ y: -80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-          <a href="#home" className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3 lg:px-8">
+          <a href="#home" className="flex shrink-0 items-center gap-3 sm:gap-4">
             <img
               src={maaJankiLogo}
               alt="MAA JANKI Industrial Services logo"
-              className="h-11 w-11 shrink-0 object-contain sm:h-12 sm:w-12"
+              className="h-24 w-24 shrink-0 object-contain sm:h-28 sm:w-28"
+              style={{
+                filter:
+                  "drop-shadow(0 0 6px rgba(255,255,255,0.9)) drop-shadow(0 0 18px rgba(255,255,255,0.6))",
+              }}
             />
 
-            <div className="min-w-0">
-              <div className="truncate text-base font-black leading-none sm:text-lg">
+            <div>
+              <div className="whitespace-nowrap text-lg font-black leading-none tracking-wide text-white sm:text-2xl">
                 MAA JANKI
               </div>
 
-              <div className="mt-1 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
+              <div className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.16em] text-orange-400 sm:text-xs sm:tracking-[0.22em]">
                 INDUSTRIAL SERVICES
               </div>
             </div>
           </a>
 
-          <nav className="hidden items-center gap-7 lg:flex">
-            <a
-              href="#about"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              About
-            </a>
-
-            <a
-              href="#services"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              Services
-            </a>
-
-            <a
-              href="#industries"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              Industries
-            </a>
-
-            <a
-              href="#projects"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              Projects
-            </a>
-
-            <a
-              href="#careers"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              Careers
-            </a>
-
-            <a
-              href="#enquiry"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              Work Enquiry
-            </a>
-
-            <a
-              href="#contact"
-              className="text-sm font-semibold transition hover:text-orange-600"
-            >
-              Contact
-            </a>
+          <nav className="hidden items-center gap-6 xl:flex">
+            {[
+              ["About", "#about"],
+              ["Services", "#services"],
+              ["Rental", "#rental"],
+              ["Industries", "#industries"],
+              ["Projects", "#projects"],
+              ["Careers", "#careers"],
+              ["Work Enquiry", "#enquiry"],
+              ["Contact", "#contact"],
+            ].map(([label, href]) => (
+              <a
+                key={href}
+                href={href}
+                className="text-sm font-semibold text-white/90 transition hover:text-orange-400"
+              >
+                {label}
+              </a>
+            ))}
           </nav>
 
           <div className="flex items-center gap-2">
@@ -908,7 +1349,7 @@ const Landing = () => {
               whileHover={{ y: -2, scale: 1.03 }}
               whileTap={{ scale: 0.96 }}
               transition={{ type: "spring", stiffness: 420, damping: 20 }}
-              className="hidden rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold transition hover:border-orange-500 hover:text-orange-600 sm:inline-flex"
+              className="hidden rounded-xl border border-white/30 px-4 py-2.5 text-sm font-bold text-white transition hover:border-orange-500 hover:text-orange-400 sm:inline-flex"
             >
               Login
             </motion.button>
@@ -923,7 +1364,7 @@ const Landing = () => {
             <button
               type="button"
               aria-label="Open menu"
-              className="rounded-xl border border-slate-200 p-2 lg:hidden"
+              className="rounded-xl border border-white/30 p-2 text-white xl:hidden"
               onClick={() => setMobileMenuOpen((value) => !value)}
             >
               {mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
@@ -932,7 +1373,7 @@ const Landing = () => {
         </div>
 
         {mobileMenuOpen && (
-          <div className="border-t border-slate-200 bg-white px-5 py-5 lg:hidden">
+          <div className="border-t border-white/10 bg-slate-950/95 px-5 py-5 text-white xl:hidden">
             <div className="flex flex-col gap-4">
               <a href="#about" onClick={() => setMobileMenuOpen(false)}>
                 About
@@ -940,6 +1381,10 @@ const Landing = () => {
 
               <a href="#services" onClick={() => setMobileMenuOpen(false)}>
                 Services
+              </a>
+
+              <a href="#rental" onClick={() => setMobileMenuOpen(false)}>
+                Rental
               </a>
 
               <a href="#industries" onClick={() => setMobileMenuOpen(false)}>
@@ -966,7 +1411,7 @@ const Landing = () => {
                 type="button"
                 onClick={handleLoginOpen}
                 whileTap={{ scale: 0.96 }}
-                className="text-left font-bold text-orange-600"
+                className="text-left font-bold text-orange-400"
               >
                 Login
               </motion.button>
@@ -979,7 +1424,7 @@ const Landing = () => {
           HERO
       ====================================================== */}
 
-            <motion.section
+      <motion.section
         id="home"
         ref={heroRef}
         onMouseMove={handleHeroMouseMove}
@@ -990,49 +1435,55 @@ const Landing = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.7 }}
       >
-        {/* Background photo */}
-                {/* Slow idle zoom (keeps the photo alive on its own) */}
+        {/* Background photo: clear banner on mobile, full background on desktop */}
         <motion.div
-          className="absolute inset-0"
-          animate={{ scale: [1, 1.06, 1] }}
+          className="absolute inset-x-0 top-0 h-[46vh] lg:inset-0 lg:h-auto"
+          animate={isMobile ? { scale: 1 } : { scale: [1, 1.06, 1] }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
         >
-          {/* Scroll parallax + mouse 3D tilt */}
+          {/* Desktop only: scroll parallax + mouse 3D tilt */}
           <motion.img
             src={heroBg}
             alt="Industrial workers on site"
-            className="absolute inset-0 h-full w-full object-cover will-change-transform"
-            style={{
-              y: bgScrollY,
-              scale: bgScrollScale,
-              x: bgShiftX,
-              translateY: bgShiftY,
-              rotateX: bgRotateX,
-              rotateY: bgRotateY,
-              transformPerspective: 1400,
-            }}
+            className="absolute inset-0 h-full w-full object-cover object-center will-change-transform"
+            style={
+              isMobile
+                ? undefined
+                : {
+                    y: bgScrollY,
+                    scale: bgScrollScale,
+                    x: bgShiftX,
+                    translateY: bgShiftY,
+                    rotateX: bgRotateX,
+                    rotateY: bgRotateY,
+                    transformPerspective: 1400,
+                  }
+            }
           />
         </motion.div>
 
-        {/* Dark overlay so text stays readable */}
-        <div className="absolute inset-0    bg-gradient-to-r from-[#050816]/95 via-[#050816]/55 to-transparent" />
+        {/* Mobile: light top shade + fade into dark. Desktop: original left-to-right overlay */}
+        <div className="absolute inset-x-0 top-0 h-[46vh] bg-gradient-to-b from-slate-950/55 via-transparent to-slate-950 lg:inset-0 lg:h-auto lg:bg-gradient-to-r lg:from-[#050816]/95 lg:via-[#050816]/55 lg:to-transparent" />
 
         {/* Soft orange glow (kept from your old design) */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(249,115,22,0.22),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(234,88,12,0.12),transparent_30%)]" />
 
-        <div className="relative z-10 mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:px-8 lg:py-24">
+        <motion.div
+          style={isMobile ? undefined : { y: contentScrollY }}
+          className="relative z-10 mx-auto grid max-w-7xl gap-10 px-5 pb-16 pt-[40vh] lg:px-8 lg:pb-24 lg:pt-44"
+        >
           <motion.div
             className="flex flex-col justify-center"
             initial={{ opacity: 0, x: -36 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="mb-7 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-orange-300">
+            <div className="mb-7 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-orange-300 sm:px-4 sm:py-2 sm:text-sm">
               <CheckCircle2 size={16} />
               Industrial Services & Manpower Solutions
             </div>
 
-            <h1 className="max-w-5xl text-4xl font-black leading-tight tracking-tight text-white md:text-6xl lg:text-7xl">
+            <h1 className="max-w-5xl text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl md:text-6xl lg:text-7xl">
               Reliable Industrial
               <span className="block text-orange-500">
                 Services That Get Work Done.
@@ -1066,6 +1517,19 @@ const Landing = () => {
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 font-bold text-white transition hover:bg-white/10"
               >
                 Explore Services
+              </motion.a>
+
+              <motion.a
+                href={WHATSAPP_LINK}
+                target="_blank"
+                rel="noreferrer"
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-6 py-3.5 font-bold text-white transition hover:bg-green-400"
+              >
+                <MessageCircle size={18} />
+                WhatsApp us
               </motion.a>
             </div>
 
@@ -1134,7 +1598,7 @@ const Landing = () => {
               </motion.div>
             ))}
           </motion.div>
-        </div>
+        </motion.div>
       </motion.section>
 
       {/* =====================================================
@@ -1299,6 +1763,19 @@ const Landing = () => {
                     {service.description}
                   </p>
 
+                  {SERVICE_TYPES[service.title] && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {SERVICE_TYPES[service.title].map((type) => (
+                        <span
+                          key={type}
+                          className="rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700"
+                        >
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <a
                     href="#enquiry"
                     className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-orange-600"
@@ -1324,7 +1801,7 @@ const Landing = () => {
                 <div>
                   <h3 className="text-lg font-black">Service Photo Manager</h3>
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Upload the real Painting, Blasting, Scaffolding, Fabrication or other service photo.
+                    Upload the real Painting, Blasting, Scaffolding, Fabrication, Rental equipment or other service photo.
                     The newest photo replaces the old one for that service.
                   </p>
                 </div>
@@ -1336,7 +1813,7 @@ const Landing = () => {
                   value={serviceUploadKey}
                   onChange={(event) => setServiceUploadKey(event.target.value)}
                 >
-                  {SERVICES.map((service) => (
+                  {MEDIA_ITEMS.map((service) => (
                     <option key={service.key} value={service.key}>
                       {service.title}
                     </option>
@@ -1367,6 +1844,128 @@ const Landing = () => {
               )}
             </motion.div>
           )}
+        </div>
+      </section>
+
+      {/* =====================================================
+          EQUIPMENT RENTAL
+      ====================================================== */}
+
+      <section id="rental" className="bg-slate-950 py-24">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-400">
+              Equipment Rental
+            </div>
+
+            <h2 className="text-3xl font-black tracking-tight text-white md:text-5xl">
+              Industrial equipment available on rental
+            </h2>
+
+            <p className="mt-5 text-lg leading-8 text-slate-300">
+              Air compressor, scaffolding and painting tools for your project.
+            </p>
+          </div>
+
+          <div className="mt-14 grid gap-6 md:grid-cols-3">
+            {RENTAL_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const photo = serviceMedia.find(
+                (media) => media.service_key === item.key
+              )?.image_url;
+
+              return (
+                <motion.div
+                  key={item.key}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.18 }}
+                  whileHover={{ y: -8 }}
+                  transition={{ duration: 0.45 }}
+                  className="overflow-hidden rounded-3xl border border-white/10 bg-white/5"
+                >
+                  <div className="h-48 overflow-hidden bg-slate-900">
+                    {photo ? (
+                      <img
+                        src={photo}
+                        alt={item.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-orange-400">
+                        <Icon size={44} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-6">
+                    <h3 className="text-xl font-black text-white">
+                      {item.title}
+                    </h3>
+
+                    <p className="mt-2 leading-7 text-slate-300">
+                      {item.description}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => requestRentalQuote(item.title)}
+                      className="mt-5 inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-500"
+                    >
+                      Request Rental Quote
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          <div className="mt-10 text-center">
+            <button
+              type="button"
+              onClick={() => requestRentalQuote()}
+              className="rounded-xl border border-white/20 px-6 py-3.5 font-bold text-white transition hover:border-orange-500 hover:text-orange-400"
+            >
+              Request Rental Quote
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          WHY CHOOSE US
+      ====================================================== */}
+
+      <section id="why-us" className="mx-auto max-w-7xl px-5 py-24 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-600">
+            Why Choose Us
+          </div>
+
+          <h2 className="text-3xl font-black tracking-tight md:text-5xl">
+            Why industries trust MAA JANKI
+          </h2>
+        </div>
+
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {WHY_CHOOSE_US.map(({ title, icon: Icon }) => (
+            <motion.div
+              key={title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              whileHover={{ y: -5 }}
+              transition={{ duration: 0.35 }}
+              className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                <Icon size={22} />
+              </div>
+
+              <div className="font-bold">{title}</div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
@@ -2204,17 +2803,41 @@ const Landing = () => {
                   setEnquiryForm({
                     ...enquiryForm,
                     service: event.target.value,
+                    service_type: "",
                   })
                 }
               >
                 <option value="">Select Service</option>
 
-                {SERVICES.map((service) => (
-                  <option
-                    key={service.title}
-                    value={service.title}
-                  >
-                    {service.title}
+                {[...SERVICES.map((service) => service.title), "Equipment Rental"].map(
+                  (title) => (
+                    <option key={title} value={title}>
+                      {title}
+                    </option>
+                  )
+                )}
+              </select>
+
+              <select
+                className={inputClass()}
+                value={enquiryForm.service_type}
+                disabled={!SERVICE_TYPES[enquiryForm.service]}
+                onChange={(event) =>
+                  setEnquiryForm({
+                    ...enquiryForm,
+                    service_type: event.target.value,
+                  })
+                }
+              >
+                <option value="">
+                  {SERVICE_TYPES[enquiryForm.service]
+                    ? "Select Service Type"
+                    : "Select service first"}
+                </option>
+
+                {(SERVICE_TYPES[enquiryForm.service] ?? []).map((type) => (
+                  <option key={type} value={type}>
+                    {type}
                   </option>
                 ))}
               </select>
@@ -2300,6 +2923,46 @@ const Landing = () => {
               </button>
             </form>
           </motion.div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          USER ACCESS
+      ====================================================== */}
+
+      <section id="access" className="bg-slate-50 py-24">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-orange-600">
+              User Access
+            </div>
+
+            <h2 className="text-3xl font-black tracking-tight md:text-5xl">
+              HRMS access for every role
+            </h2>
+          </div>
+
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {USER_ACCESS.map(({ role, access, icon: Icon }) => (
+              <motion.div
+                key={role}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.18 }}
+                whileHover={{ y: -8 }}
+                transition={{ duration: 0.4 }}
+                className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
+              >
+                <Icon size={30} className="mb-4 text-orange-600" />
+
+                <h3 className="text-lg font-black">{role}</h3>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {access}
+                </p>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -2406,6 +3069,16 @@ const Landing = () => {
                   </div>
                 </div>
               </div>
+
+              <a
+                href={WHATSAPP_LINK}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-500 px-5 py-3 font-bold text-white transition hover:bg-green-400"
+              >
+                <MessageCircle size={18} />
+                WhatsApp us
+              </a>
             </div>
           </motion.div>
 
@@ -2529,10 +3202,13 @@ const Landing = () => {
               <div className="mt-4 grid gap-3 text-sm text-slate-400">
                 <a href="#about">About</a>
                 <a href="#services">Services</a>
+                <a href="#rental">Rental</a>
+                <a href="#why-us">Why Choose Us</a>
                 <a href="#industries">Industries</a>
                 <a href="#projects">Projects</a>
                 <a href="#careers">Careers</a>
                 <a href="#enquiry">Work Enquiry</a>
+                <a href="#access">User Access</a>
                 <a href="#contact">Contact</a>
               </div>
             </div>
@@ -2561,6 +3237,21 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+
+      {/* MJIS AI assistant */}
+      <MjisAiAssistant />
+
+      {/* Floating WhatsApp button */}
+      <a
+        href={WHATSAPP_LINK}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="WhatsApp us"
+        className="fixed bottom-5 right-5 z-[60] inline-flex items-center gap-2 rounded-full bg-green-500 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-green-600/30 transition hover:bg-green-400"
+      >
+        <MessageCircle size={20} />
+        WhatsApp us
+      </a>
       </div>
     </>
   );

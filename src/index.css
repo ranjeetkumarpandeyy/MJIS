@@ -305,3 +305,49 @@ All colors MUST be HSL. */
     transform: none !important;
   }
 }
+/* ================================================================
+   MJIS AI ASSISTANT (dashboard)  -  paste at the END of index.css
+   ================================================================ */
+
+.mjis-ai-messages {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+  overscroll-behavior: contain;
+}
+
+.mjis-ai-dot {
+  display: inline-block;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: hsl(var(--foreground) / 0.45);
+  animation: mjis-ai-bounce 1s ease-in-out infinite;
+}
+
+.mjis-ai-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.mjis-ai-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes mjis-ai-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mjis-ai-dot {
+    animation: none !important;
+  }
+}
